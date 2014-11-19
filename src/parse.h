@@ -12,7 +12,7 @@ enum ProjType {
     ORTHO,
     PERSP
 };
-
+/*
 typedef struct f3d {
 	float x, y, z;
 } Vector;
@@ -31,7 +31,7 @@ typedef struct sphere {
     double radius;
     Material mat;
 } Sphere;
-
+*/
 typedef struct light {
     Vector color;        //Color of the light (All)
     Vector position;   //Position of the Light (Point, Spot)
@@ -130,7 +130,7 @@ void printMaterial(Material mat);
 void printLight(Light l);
 void printImage(File img);
 void printVector(Vector fVec);
-/*
+
 class Vector {
     public:
         Vector();
@@ -141,38 +141,81 @@ class Vector {
         float z;
         
         //Performs a dot product operation on the 2 vectors
-        //float dot(Vector u, Vector v);
-        float operator*(const Vector&);
+        static float dot(const Vector& u, const Vector& v);
         //Performs a cross prooduct
-        Vector cross(Vector u, Vector v);
-        //Multiple vector
-        //Vector multiply(Vector u, float c);
-        Vector operator*(const float& c);
-        //Adds 2 vectors
-        //Vector add(Vector u, Vector v);
-        Vector operator+(const Vector& u);
-        //Vector add(Vector u, float c);
-        Vector operator+(const float& c);
-        //Subtracts 2 vectors
-        //Vector sub(Vector u, Vector v);
-        Vector operator-(const Vector& u);
-        Vector operator-(const float& c);
-        //Returns the length of the vector
-        float length();
-        //Finds the length but does not take the square root
-        float lengthsq();
+        static Vector cross(const Vector& u, const Vector& v);
+        //Finds the length of the distance between the 2 vectors (same as magnitude(u-v))
+        static float length(const Vector& u, const Vector& v);
+        //Square version of length()
+        static float lengthSq(const Vector& u, const Vector& v);
+        
+        //Returns the magnitude of the vector
+        float magnitude();
+        //Finds the magnitude but does not take the square root
+        float magnitudeSq();
         //Normalizes the vector
         Vector norm();
+        
+        //Multiply vector
+        Vector operator*(const float& c);
+        Vector& operator*=(const Vector& u);
+        //Adds 2 vectors
+        Vector operator+(const Vector& u);
+        Vector operator+(const float& c);
+        Vector& operator+=(const Vector& u);
+        Vector& operator+=(const float& c);
+        //Subtracts 2 vectors
+        Vector operator-(const Vector& u);
+        Vector operator-(const float& c);
+        Vector& operator-=(const Vector& u);
+        Vector& operator-=(const float& c);
 };
 
 class Material {
     public:
         Material();
-        Material();
+        Material(Vector ambient, Vector diffuse, Vector specular);
+        Material(Vector amb, Vector dif, Vector spec, Vector trans, float pow, float iref);
+        
+        void setAmbient(Vector amb);
+        void setDiffuse(Vector dif);
+        void setSpecular(Vector spec);
+        void setTransmissive(Vector trns);
+        void setCosPower(float pow);
+        void setIndexRefract(float index);
+        
+        Vector getAmbient() const { return ambientColor; }
+        Vector getDiffuse() const { return diffuseColor; }
+        Vector getSpecular() const { return specularColor; }
+        Vector getTransmissive() const { return transmissiveColor; }
+        float getCosPower() const { return cosPow; }
+        float getIndexRefract() const { return ior; }
+    private:
+        Vector ambientColor;
+        Vector diffuseColor;
+        Vector specularColor;
+        
+        float cosPow; //Phong cosine power for specular highlights
+        Vector transmissiveColor;
+        float ior;
 };
 
 class Sphere {
-    
+    public:
+        Sphere();
+        Sphere(Vector pos, float rad, Material material);
+        
+        void setPosition(const Vector& pos);
+        void setRadius(const float& rad);
+        void setMaterial(Material material);
+        
+        Vector getPosition() const { return position; }
+        float getRadius() const { return radius; }
+        float getMaterial() const { return mat; }
+    private:
+        Vector position;
+        float radius;
+        Material mat;
 };
 
 class Triangle {
@@ -181,11 +224,20 @@ class Triangle {
         Triangle(Vector v1, Vector v2, Vector v3);
         Triangle(Vector v1, Vector v2, Vector v3, Vector n1, Vector n2, Vector n3);
         
-        Vector vertices[3];
-        Vector normals[6];
-        bool ntri;
+        void setVertex(const Vector& vert, int index);
+        void setVertices(const Vector[3] verts);
+        void setNormal(const Vector& norm);
+        void setNormal(const Vector& norm, int index);
+        void setNormals(const Vector[3] norms);
         
         Vector getNormal();
+        Vector getNormal(int index);
+        Vector getVertex(int index);
+        Vector[3] getVertices();
+    private:
+        Vector vertices[3];
+        Vector normals[3];
+        bool ntri;
 };
 
 class Light {
@@ -234,5 +286,5 @@ class Scene {
         
         double getPlaneDist();
 };
-*/
+
 #endif
