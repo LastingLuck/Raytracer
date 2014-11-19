@@ -12,111 +12,10 @@ enum ProjType {
     ORTHO,
     PERSP
 };
-/*
-typedef struct f3d {
-	float x, y, z;
-} Vector;
-
-typedef struct material {
-    Vector ambientColor;
-    Vector diffuseColor;
-    Vector specularColor;
-    double cosPow; //Phong cosine power for specular highlights
-    Vector transmissiveColor;
-    double ior;
-} Material;
-
-typedef struct sphere {
-    Vector position;
-    double radius;
-    Material mat;
-} Sphere;
-
-typedef struct light {
-    Vector color;        //Color of the light (All)
-    Vector position;   //Position of the Light (Point, Spot)
-    Vector direction;  //Direction the light is pointing (Directional, Spot)
-    float angle1;       //Used for Spot Light
-    float angle2;       //Used for Spot Light
-} Light;
-
-typedef struct cam {
-    Vector position;   //Camera Position
-    Vector direction;  //Camera Viewing Direction
-    Vector cameraUp;   //Up vector
-    double cameraHa;    //Half of the height angle of the viewing frustrum
-} Camera;
-
-typedef struct image {
-    std::string filename;     //Output filename
-    int width;          //Width of image
-    int height;         //Height of image
-} File;
-
-typedef struct triangle {
-	Material mat;
-    Vector vertices[3];
-    Vector normals[6]; //First 3 are the first normal for each point, last 3 are the second normal
-    bool ntri;
-} Triangle;
-
-typedef struct flatplane {
-	Material mat;
-	Vector point; //A point on the plane
-	Vector normal;
-	Vector inormal; //Inverse of normal
-} Plane;
-
-typedef struct flatrectangle {
-	Material mat;
-	Vector points[4];
-	Vector normal;
-	Vector inormal;
-} Rectangle;
-
-typedef struct aabb {
-	//std::array<Vector, 8> vertices; //(TL TR BL[min] BR) (TL TR[max] BL BR)
-	//std::array<Vector, 6> normals; //F T R Bo L Ba
-	Vector max;
-	Vector min;
-	//Vector max; //Contains the max x, y, z values of the bounding box
-	//Vector min; //Contains the min x, y, z values of the bounding box
-	struct aabb* sub1;
-	struct aabb* sub2;
-	struct aabb* parent;
-	
-	int objNum;
-	std::vector<Sphere> spheres;
-	std::vector<Triangle> triangles;
-    std::vector<Plane> planes;
-    //std::vector<Rectangle> rectangles;
-} Box;
-
-typedef struct data {
-    Camera camera;   
-    std::vector<Sphere> spheres; //List of spheres to put in the scene
-    std::vector<Vector> vertexes;
-    std::vector<Vector> normals;
-    std::vector<Triangle> triangles;
-    std::vector<Plane> planes;
-    File file;
-    Vector BGColor;      //RGB value of the background
-    std::vector<Light> directional;
-    std::vector<Light> point;
-    std::vector<Light> spot;
-    Light ambient;
-    int depth;
-    enum ProjType eyeray; //Orthographic or Perspective
-    
-    int bvhthresh;
-    int bvhdepth;
-    int objNum;
-    Box* bvh;
-    
-    int sampleNum;
-} SceneData;
-*/
-//Parses the scene text file and fills out a SceneData struct
+enum LightType { 
+    POINT, 
+    DIRECTIONAL 
+};
 
 class Vector {
     public:
@@ -217,13 +116,14 @@ class Triangle {
         void setNormal(const Vector& norm, int index) { normals[clamp(index, 0, 2)] = norm; ntri = true; }
         void setNormals(const Vector norms[3]);
         
-        Vector getNormal();
-        Vector getNormal(int index);
-        Vector getVertex(int index);
-        std::vector<Vector> getVertices();
+        Vector getNormal() const { return normals[0]; }
+        Vector getNormal(int index) const { return normals[clamp(index, 0, 2)]; }
+        Vector getVertex(int index) const { return vertices[clamp(index, 0, 2)]; }
+        std::vector<Vector> getVertices() const { return std::vector<Vector>(vertices, vertices+3); }
+        std::vector<Vector> getNormals() const { return std::vector<Vector>(normals, normals+3); }
         bool isNormal() { return ntri; } //< Returns wether the triangle has seperate normals for each point
     private:
-        int clamp(int num, int min, int max);
+        int clamp(int num, int min, int max) const { return (num < min) ? min : (num > max) ? max : num; }
         
         Vector vertices[3];
         Vector normals[3];
@@ -231,7 +131,6 @@ class Triangle {
 };
 
 class Light {
-    enum LightType { POINT, DIRECTIONAL };
     public:
         Light();
         Light(const Vector& lightColor);
@@ -246,11 +145,11 @@ class Light {
         void setSpotAngle(float angle) { angle1 = angle; }
         void setMaxAngle(float angle) { angle2 = angle; }
         
-        Vector getColor() { return color; }
-        Vector getPosition() { return position; }
-        Vector getDirection() { return direction; }
-        float getSpotAngle() { return angle1; }
-        float getMaxAngle() { return angle2; }
+        Vector getColor() const { return color; }
+        Vector getPosition() const { return position; }
+        Vector getDirection() const { return direction; }
+        float getSpotAngle() const { return angle1; }
+        float getMaxAngle() const { return angle2; }
         
     private:
         Vector color;        //Color of the light (All)
@@ -263,66 +162,94 @@ class Light {
 class Camera {
     public:
         Camera();
-        Camera(Vector p, Vector d, Vector u, double ha);
-    
+        Camera(const Vector& pos, Vector dir, Vector upDir, double fov);
+        
+        void setPosition(const Vector& pos) { position = pos; }
+        void setDirection(const Vector& dir) { direction = dir; }
+        void setUpDirection(const Vector& upDir) { up = upDir; }
+        void setFOV(float angle) { halfAngle = angle / 2.0f; }
+        void setHalfFOV(float angle) { halfAngle = angle; }
+        
+        Vector getPosition() const { return position; }
+        Vector getDirection() const { return direction; }
+        Vector getUpDirection() const { return up; }
+        float getFOV() const { return 2.0f * halfAngle; }
+        float getHalfFOV() const { return halfAngle; }
+    private:
         Vector position;
         Vector direction;
         Vector up;
-        double halfAngle;
+        float halfAngle;
 };
 
+namespace rt { //Image conflicts with EasyBMP class of same name.
 class Image {
     public:
         Image();
         Image(const std::string& name);
         Image(const std::string& name, int imageWidth, int imageHeight);
         
-        void setFileName(const std::string& name);
-        void setWidth(int newWidth);
-        void setHeight(int newHeight);
+        void setFileName(const std::string& name) { filename = name; }
+        void setWidth(int newWidth) { width = newWidth; }
+        void setHeight(int newHeight) { height = newHeight; }
         
-        std::string getFileName() { return filename; }
-        int getWidth() { return width; }
-        int getHeight() { return height; }
+        std::string getFileName() const { return filename; }
+        int getWidth() const { return width; }
+        int getHeight() const { return height; }
     private:
         std::string filename;     //Output filename
         int width;                //Width of image
         int height;               //Height of image
 };
+} //end rt namespace
 
 class Scene {
     public:
+        Scene();
+        Scene(enum ProjType view);
+        
+        void init(); //< (re)initialize everything to default values
+        
+        void setCamera(const Camera& cam) { camera = cam; }
+        void setProjType(enum ProjType view) { proj = view; }
+        void setImage(const rt::Image& image) { img = image; }
+        void addSphere(const Sphere& sphere) { spheres.push_back(sphere); }
+        void addVertex(const Vector& vert) { vertexPool.push_back(vert); }
+        void addNormal(const Vector& norm) { normalPool.push_back(norm); }
+        void addTriangle(const Triangle& tri) { triangles.push_back(tri); }
+        void setBackground(const Vector& bg) { bgColor = bg; }
+        void setMaxDepth(int maximumDepth) { maxDepth = maximumDepth; }
+        void addDirectionalLight(const Light& dirLight) { directional.push_back(dirLight); }
+        void addPointLight(const Light& pointLight) { point.push_back(pointLight); }
+        void addSpotLight(const Light& spotLight) { spot.push_back(spotLight); }
+        void setAmbientLight(const Light& ambLight) { ambient = ambLight; }
+        
+        double getPlaneDist();
+        //Parses the scene text file and fills out a SceneData struct
+        int parseScene(char* file);
+        
+    private:
         //Camera
         Camera camera;
         enum ProjType proj;
         //Image
-        std::string filename;
-        int width, height;
+        rt::Image img;
         //Sphere
-        Sphere* spheres;
-        int sphereNum;
+        std::vector<Sphere> spheres;
         //Triangle
-        Vector* vertexPool;
-        int vertNum;
-        Vector* normalPool;
-        int normNum;
-        Triangle* triangles;
-        int triNum;
+        std::vector<Vector> vertexPool;
+        std::vector<Vector> normalPool;
+        std::vector<Triangle> triangles;
         //Background
         Vector bgColor;
         //depth
         int maxDepth;
         //Lights
-        Light* directional;
-        Light* point;
-        Light* spot;
+        std::vector<Light> directional;
+        std::vector<Light> point;
+        std::vector<Light> spot;
         Light ambient;
-        int lightNum[3];
-        
-        double getPlaneDist();
 };
-
-int parseScene(char* file, Scene *scene);
 
 //Print functions used to print the contents of SceneData to test it
 void printScene(Scene *scn);
@@ -331,7 +258,7 @@ void printSphere(Sphere sph);
 void printTriangle(Triangle tri);
 void printMaterial(Material mat);
 void printLight(Light l);
-void printImage(Image img);
+void printImage(rt::Image img);
 void printVector(Vector fVec);
 
 #endif
