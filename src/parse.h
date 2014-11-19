@@ -31,7 +31,7 @@ typedef struct sphere {
     double radius;
     Material mat;
 } Sphere;
-*/
+
 typedef struct light {
     Vector color;        //Color of the light (All)
     Vector position;   //Position of the Light (Point, Spot)
@@ -115,21 +115,8 @@ typedef struct data {
     
     int sampleNum;
 } SceneData;
-
+*/
 //Parses the scene text file and fills out a SceneData struct
-int parseScene(char* file, SceneData *scene);
-
-//Print functions used to print the contents of SceneData to test it
-void printScene(SceneData *scn);
-void printCamera(Camera camera);
-void printSphere(Sphere sph);
-void printTriangle(Triangle tri);
-void printPlane(Plane pl);
-void printRect(Rectangle rec);
-void printMaterial(Material mat);
-void printLight(Light l);
-void printImage(File img);
-void printVector(Vector fVec);
 
 class Vector {
     public:
@@ -177,12 +164,12 @@ class Material {
         Material(Vector ambient, Vector diffuse, Vector specular);
         Material(Vector amb, Vector dif, Vector spec, Vector trans, float pow, float iref);
         
-        void setAmbient(Vector amb);
-        void setDiffuse(Vector dif);
-        void setSpecular(Vector spec);
-        void setTransmissive(Vector trns);
-        void setCosPower(float pow);
-        void setIndexRefract(float index);
+        void setAmbient(Vector amb) { ambientColor = amb; }
+        void setDiffuse(Vector dif) { diffuseColor = dif; }
+        void setSpecular(Vector spec) { specularColor = spec; }
+        void setTransmissive(Vector trns) { transmissiveColor = trns; }
+        void setCosPower(float pow) { cosPow = pow; }
+        void setIndexRefract(float index) { ior = index; }
         
         Vector getAmbient() const { return ambientColor; }
         Vector getDiffuse() const { return diffuseColor; }
@@ -205,13 +192,13 @@ class Sphere {
         Sphere();
         Sphere(Vector pos, float rad, Material material);
         
-        void setPosition(const Vector& pos);
-        void setRadius(const float& rad);
-        void setMaterial(Material material);
+        void setPosition(const Vector& pos) { position = pos; }
+        void setRadius(const float& rad) { radius = rad; }
+        void setMaterial(Material material) { mat = material; }
         
         Vector getPosition() const { return position; }
         float getRadius() const { return radius; }
-        float getMaterial() const { return mat; }
+        Material getMaterial() const { return mat; }
     private:
         Vector position;
         float radius;
@@ -224,24 +211,53 @@ class Triangle {
         Triangle(Vector v1, Vector v2, Vector v3);
         Triangle(Vector v1, Vector v2, Vector v3, Vector n1, Vector n2, Vector n3);
         
-        void setVertex(const Vector& vert, int index);
-        void setVertices(const Vector[3] verts);
-        void setNormal(const Vector& norm);
-        void setNormal(const Vector& norm, int index);
-        void setNormals(const Vector[3] norms);
+        void setVertex(const Vector& vert, int index) { vertices[clamp(index, 0, 2)] = vert; }
+        void setVertices(const Vector verts[3]);
+        void setNormal(const Vector& norm) { normals[0] = normals[1] = normals[2] = norm; ntri = false;}
+        void setNormal(const Vector& norm, int index) { normals[clamp(index, 0, 2)] = norm; ntri = true; }
+        void setNormals(const Vector norms[3]);
         
         Vector getNormal();
         Vector getNormal(int index);
         Vector getVertex(int index);
-        Vector[3] getVertices();
+        std::vector<Vector> getVertices();
+        bool isNormal() { return ntri; } //< Returns wether the triangle has seperate normals for each point
     private:
+        int clamp(int num, int min, int max);
+        
         Vector vertices[3];
         Vector normals[3];
         bool ntri;
 };
 
 class Light {
-    
+    enum LightType { POINT, DIRECTIONAL };
+    public:
+        Light();
+        Light(const Vector& lightColor);
+        Light(const Vector& lightColor, const Vector& lightPosDir, enum LightType type);
+        Light(const Vector& lightColor, const Vector& lightDir, float spotAngle, float maxAngle);
+        
+        //these do not affect the type of light (i.e. changing direction of a spot
+        //light has no effect)
+        void setColor(const Vector& newColor) { color = newColor; }
+        void setPosition(const Vector& newPos) { position = newPos; }
+        void setDirection(const Vector& newDir) { direction = newDir; }
+        void setSpotAngle(float angle) { angle1 = angle; }
+        void setMaxAngle(float angle) { angle2 = angle; }
+        
+        Vector getColor() { return color; }
+        Vector getPosition() { return position; }
+        Vector getDirection() { return direction; }
+        float getSpotAngle() { return angle1; }
+        float getMaxAngle() { return angle2; }
+        
+    private:
+        Vector color;        //Color of the light (All)
+        Vector position;     //Position of the Light (Point, Spot)
+        Vector direction;    //Direction the light is pointing (Directional, Spot)
+        float angle1;        //Angle where it acts as a point light (Spot)
+        float angle2;        //Max angle that the spot light reaches (Spot)
 };
 
 class Camera {
@@ -253,6 +269,25 @@ class Camera {
         Vector direction;
         Vector up;
         double halfAngle;
+};
+
+class Image {
+    public:
+        Image();
+        Image(const std::string& name);
+        Image(const std::string& name, int imageWidth, int imageHeight);
+        
+        void setFileName(const std::string& name);
+        void setWidth(int newWidth);
+        void setHeight(int newHeight);
+        
+        std::string getFileName() { return filename; }
+        int getWidth() { return width; }
+        int getHeight() { return height; }
+    private:
+        std::string filename;     //Output filename
+        int width;                //Width of image
+        int height;               //Height of image
 };
 
 class Scene {
@@ -286,5 +321,17 @@ class Scene {
         
         double getPlaneDist();
 };
+
+int parseScene(char* file, Scene *scene);
+
+//Print functions used to print the contents of SceneData to test it
+void printScene(Scene *scn);
+void printCamera(Camera camera);
+void printSphere(Sphere sph);
+void printTriangle(Triangle tri);
+void printMaterial(Material mat);
+void printLight(Light l);
+void printImage(Image img);
+void printVector(Vector fVec);
 
 #endif
