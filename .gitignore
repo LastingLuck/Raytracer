@@ -1,0 +1,10 @@
+*.o
+*.gch
+*.bmp
+*.pdf
+*.zip
+jpg/
+gui/
+times
+.DS_Store
+._*

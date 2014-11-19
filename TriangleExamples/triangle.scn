@@ -1,0 +1,18 @@
+output_image tritest.bmp
+background 0 .25 0
+max_vertices 5
+vertex 0 0 2
+vertex 0 1 2
+vertex 1 0 2
+vertex 0 -1 2
+vertex -1 0 2
+
+#material 0 0 0 1 1 1 1 1 1 5 0 0 0 1
+
+triangle 0 1 2
+#triangle 0 1 4
+#triangle 0 3 2
+#triangle 0 3 4
+
+#directional_light 0 0 1 0 0 1
+#point_light .5 .5 .5 0 0 1

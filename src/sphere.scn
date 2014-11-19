@@ -1,0 +1,15 @@
+#!/home/alex/Class/5607/RayTrace/raytrace
+
+#This is a sphere lit by an ambient light on a white background.
+camera 0 0 0 0 0 1 0 1 0 45
+output_image spheres.bmp
+material 1 1 1 0 0 0 1 1 1 1 1 1 1 1
+sphere -1 -1 3 1
+sphere .2 .2 2 1
+#spot_light 
+directional_light 1 0 0 -1 -1 1
+directional_light 0 1 0 1 1 1
+ambient_light .1 .1 .1
+#point_light 1 0 0 1 1 0
+#point_light 0 1 0 -1 -1 0
+background 1 1 1
