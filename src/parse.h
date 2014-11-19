@@ -209,6 +209,9 @@ class Scene {
         Scene(enum ProjType view);
         
         void init(); //< (re)initialize everything to default values
+        //Parses the scene text file and fills out a SceneData struct
+        int parseScene(char* file);
+        double getPlaneDist();
         
         void setCamera(const Camera& cam) { camera = cam; }
         void setProjType(enum ProjType view) { proj = view; }
@@ -223,10 +226,6 @@ class Scene {
         void addPointLight(const Light& pointLight) { point.push_back(pointLight); }
         void addSpotLight(const Light& spotLight) { spot.push_back(spotLight); }
         void setAmbientLight(const Light& ambLight) { ambient = ambLight; }
-        
-        double getPlaneDist();
-        //Parses the scene text file and fills out a SceneData struct
-        int parseScene(char* file);
         
     private:
         //Camera
@@ -249,6 +248,13 @@ class Scene {
         std::vector<Light> point;
         std::vector<Light> spot;
         Light ambient;
+        //Misc
+        int objNum;
+        //BVH
+        int bvhDepth;
+        bool useBVH;
+        //Super Sample
+        int sampleNum = 1;
 };
 
 //Print functions used to print the contents of SceneData to test it

@@ -30,7 +30,7 @@ int main( int argc, char* argv[] ){
         scenename = argv[0];
     }
     //Parse the scene file
-    if (parseScene(scenename, &data) < 0) {
+    if (data->parseScene(scenename) < 0) {
         printf("Scene Parse Failed\n");
         std::exit(-1);
     }

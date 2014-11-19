@@ -5,38 +5,34 @@
 
 #define MAX_LINE 100
 
-SceneData init() {
-    SceneData d;
+Scene::Scene() {
+    init();
+}
+
+void Scene::init() {
     //Camera
-    d.camera.position = (Vector){0, 0, 0};
-    d.camera.direction = (Vector){0, 0, 1};
-    d.camera.cameraUp = (Vector){0, 1, 0};
-    d.camera.cameraHa = 45.0 * (M_PI / 180.0);
-    //Vertex/Normal
-    d.vertexes.reserve(0);
-    d.normals.reserve(0);
+    camera = Camera((Vector){0, 0, 0}, (Vector){0, 0, 1}, (Vector){0, 1, 0}, 45.0*(M_PI / 180.0));
     //Image
-    d.file.filename = "raytraced.bmp";
-    d.file.width = 640;
-    d.file.height = 480;
+    img = rt::Image("raytraced.bmp", 640, 480);
     //Light
-    d.ambient = (Light){(Vector){0, 0, 0}, (Vector){0, 0, 0}, (Vector){0, 0, 0}, 0, 0};\
+    ambient = Light(Vector(0, 0, 0));
     //Misc
-    d.BGColor = (Vector){0, 0, 0};
-    d.depth = 5;
-    d.eyeray = PERSP;
-    d.objNum = 0;
-    d.bvhthresh = 500;
-    d.bvhdepth = 5;
-    d.bvh = 0;
-    d.sampleNum = 1;
+    bgColor = Vector(0, 0, 0);
+    maxDepth = 5;
+    proj = PERSP;
+    objNum = 0;
+    //BVH
+    bvhthresh = 500;
+    bvhdepth = 5;
+    useBVH = false;
+    //Super sampling
+    sampleNum = 1;
     #ifdef DEBUG
     printf("Setup Done\n");
     #endif
-    return d;
 }
 
-int parseScene(char* file, SceneData *scene) {
+int Scene::parseScene(char* file) {
     FILE* scn;
     if ((scn = fopen(file, "r")) == 0) {
         printf("File could not be opened: %s\n", file);
@@ -394,7 +390,7 @@ int parseScene(char* file, SceneData *scene) {
     return 1;
 }
 
-void printScene(SceneData *scn) {
+void printScene(Scene *scn) {
     printf("\nCamera:\n");
     printCamera(scn->camera);
     printf("\n");
