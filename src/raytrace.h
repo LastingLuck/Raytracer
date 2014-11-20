@@ -68,17 +68,45 @@ class RayTrace {
 /**
  * Acceleration Structure
  */
-void printBVH(Box* b, int depth);
-void makeBVH(SceneData* scn, Box* box, int depth);
-Intersect* intersectBVH(Ray* trace, Box* bvh, double dmin, double dmax);
-//void findBoundingVerts(SceneData* scn, std::array<Vector, 8> (&verts));
-void findBoundingVerts(SceneData* scn, Vector& bl, Vector& tr);
-//char findLongestAxis(std::array<Vector, 8> vrts);
-char findLongestAxis(Vector vmin, Vector vmax);
-bool isSphereInBox(Box* b, Sphere* sph);
-bool isTriangleInBox(Box* b, Triangle* t);
-bool isPlaneInBox(Box* b, Plane* pln);
-bool intersectRayAABB(Ray* trace, Box* bvh, double dmin, double dmax);
-void findMinMax(float x0, float x1, float x2, float& min, float& max);
+ 
+class AABB {
+    public:
+        AABB();
+        AABB(std::vector<Sphere> sphs, std::vector<Triangle> tris);
+        
+        void addSphere(const Sphere& sph) { }
+        void addTriangle(const Triangle& tri);
+        
+        std::vector<Sphere> getSpheres() { return spheres; }
+        std::vector<Triangle> getTriangles() { return triangles; }
+        bool isLeaf() { return leaf; }
+        AABB* getLeftChild() { return left; }
+        AABB* getRightChild() { return right; }
+    private:
+        std::vector<Sphere> spheres;
+        std::vector<Triangle> triangles;
+        //May not actually be left and right in space.
+        AABB* left;
+        AABB* right;
+};
+
+class BVH {
+    public:
+        void print();
+        void make(const Scene& scn, int depth);
+        Intersect* intersect(const Ray& trace, double dmin, double dmax);
+        
+    private:
+        AABB* root;
+        int depth;
+        
+        void findBoundingVerts(const Scene& scn, Vector& bl, Vector& tr);
+        char findLongestAxis(const Vector& vmin, const Vector& vmax);
+        bool isSphereInBox(const Sphere& sph);
+        bool isTriangleInBox(const Triangle& t);
+        //bool isPlaneInBox(const AABB& b, const Plane& pln);
+        bool intersectRayAABB(const Ray& trace, const AABB* bvh, double dmin, double dmax);
+        void findMinMax(float x0, float x1, float x2, float& min, float& max);
+};
 
 #endif
