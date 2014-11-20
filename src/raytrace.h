@@ -21,13 +21,7 @@ class Ray {
         Vector d;
 };
 
-//Type of intersection
-enum insectType {
-    SPHERE,
-    TRIANGLE
-};
-
-typedef struct intersection {
+class Intersect {
     //Normal of intersect point
     Vector normal;
 	//Intersected ray
@@ -38,26 +32,38 @@ typedef struct intersection {
 	Vector p;
 	//Intersection material
 	Material m;
-} Intersect;
+};
 
-//Performs a ray trace and returns an image
-Image* RayTrace(SceneData* scn);
-//Recursive ray structure
-Vector evaluateRayTree(SceneData* scn, Ray* ray, int depth, bool useBVH);
-//Tests for intersections
-Intersect* intersect(Ray* trace, SceneData* scn, double tmin, double tmax, bool useBVH);
-Intersect* intersectSpheres(Ray* trace, std::vector<Sphere> objList, double dmin, double dmax);
-Intersect* intersectTriangle(Ray* trace, std::vector<Triangle> triList, double dmin, double dmax);
-Intersect* intersectPlane(Ray* trace, std::vector<Plane> planeList, double dmin, double dmax);
-Intersect* intersectRectangle(Ray* trace, std::vector<Rectangle> rectList, double dmin, double dmax);
-//Returns a ray calculated from the pixel position and the viewing angle
-Ray getRay(int x, int y, int w, int h, Vector p1, Vector p2, double pd, Camera* c, ProjType proj, bool sample);
-//Returns a pixel with the background color
-Vector getColor(Intersect* i, SceneData* scn, int depth, bool useBVH);
-//Distance to the viewing plane
-double getPlaneDist(double angle, int h);
-//Finds 2 extreme points of the viewing plane
-void getExtremePoints(Camera* c, double d, double w, double h, Vector& p1, Vector& p2);
+class RayTrace {
+    public:
+        RayTrace();
+        
+        //Performs a ray trace and returns an image
+        Image* rayTrace(const Scene& scn);
+        void forceBVH(bool force) { forcebvh = force; }
+    private:
+        bool forcebvh;
+        
+        Vector ave(Vector v[], int num);
+        //Recursive ray structure
+        Vector evaluateRayTree(const Scene& scn, const Ray& ray, int depth) const;
+        //Returns a ray calculated from the pixel position and the viewing angle
+        Ray getRay(int x, int y, int w, int h, const Vector& p1, const Vector& p2, 
+                   double pd, const Camera& c, ProjType proj, bool sample) const;
+        //Returns a pixel with the background color
+        Vector getColor(const Intersect& i, const Scene& scn, int depth) const;
+        //Distance to the viewing plane
+        double getPlaneDist(double angle, int h) const;
+        //Finds 2 extreme points of the viewing plane
+        void getExtremePoints(const Camera& c, double d, double w, double h, Vector& p1, Vector& p2) const;
+        //Tests for intersections
+        Intersect* intersect(const Ray& trace, const Scene& scn, double tmin, double tmax);
+        Intersect* intersectSpheres(const Ray& trace, const std::vector<Sphere>& objList, double dmin, double dmax);
+        Intersect* intersectTriangle(const Ray& trace, const std::vector<Triangle>& triList, double dmin, double dmax);
+};
+
+//Intersect* intersectPlane(Ray* trace, std::vector<Plane> planeList, double dmin, double dmax);
+//Intersect* intersectRectangle(Ray* trace, std::vector<Rectangle> rectList, double dmin, double dmax);
 
 /**
  * Acceleration Structure
@@ -74,7 +80,5 @@ bool isTriangleInBox(Box* b, Triangle* t);
 bool isPlaneInBox(Box* b, Plane* pln);
 bool intersectRayAABB(Ray* trace, Box* bvh, double dmin, double dmax);
 void findMinMax(float x0, float x1, float x2, float& min, float& max);
-
-Vector ave(Vector v[], int num);
 
 #endif
