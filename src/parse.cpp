@@ -1,5 +1,4 @@
 #include "parse.h"
-//#include "raytrace.h"
 #include <cstdio>
 #include <cstring>
 #include <fstream>
@@ -349,35 +348,7 @@ void printSphere(Sphere sph) {
     printf("Material:\n");
     printMaterial(sph.getMaterial());
 }
-/*
-void printPlane(Plane pl) {
-	printf("Point: ");
-	printVector(pl.point);
-	printf("Normal: ");
-	printVector(pl.normal);
-	printf("Inverse Normal: ");
-	printVector(pl.inormal);
-	printf("Material:\n");
-	printMaterial(pl.mat);
-}
 
-void printRect(Rectangle rec) {
-	printf("Point 1: ");
-	printVector(rec.points[0]);
-	printf("Point 2: ");
-	printVector(rec.points[1]);
-	printf("Point 3: ");
-	printVector(rec.points[2]);
-	printf("Point 4: ");
-	printVector(rec.points[3]);
-	printf("Normal: ");
-	printVector(rec.normal);
-	printf("Inverse Normal: ");
-	printVector(rec.inormal);
-	printf("Material:\n");
-	printMaterial(rec.mat);
-}
-*/
 void printMaterial(Material mat) {
     printf("Ambient Color: ");
     printVector(mat.getAmbient());
