@@ -1,12 +1,18 @@
 #include "parse.h"
-#include "raytrace.h"
+//#include "raytrace.h"
 #include <cstdio>
 #include <cstring>
+#include <fstream>
 
 #define MAX_LINE 100
 
 Scene::Scene() {
     init();
+}
+
+Scene::Scene(enum ProjType view) {
+    init();
+    proj = view;
 }
 
 void Scene::init() {
@@ -22,8 +28,8 @@ void Scene::init() {
     proj = PERSP;
     objNum = 0;
     //BVH
-    bvhthresh = 500;
-    bvhdepth = 5;
+    bvhThresh = 500;
+    bvhDepth = 5;
     useBVH = false;
     //Super sampling
     sampleNum = 1;
@@ -33,373 +39,190 @@ void Scene::init() {
 }
 
 int Scene::parseScene(char* file) {
-    FILE* scn;
-    if ((scn = fopen(file, "r")) == 0) {
+    std::ifstream scn;
+    scn.open(file);
+    if(scn.fail()) {
         printf("File could not be opened: %s\n", file);
         return -1;
     }
-    Material curMat = (Material){(Vector){0, 0, 0}, (Vector){1, 1, 1}, (Vector){0, 0, 0}, 5, (Vector){0, 0, 0}};
-    char* line = new char[MAX_LINE];
-    while (std::fgets(line, MAX_LINE, scn)) {
-        //Parse the line
-        if (line == 0 || *line == '#') {
+    Material curMat(Vector::zero(), Vector::one(), Vector::zero(), Vector::zero(), 5, 1);
+    std::string str;
+    while(scn >> str) {
+        if(str == "" || str[0] == '#') {
             continue;
         }
-        char* tok = strtok(line, " ");
-        if (strcmp(tok, "camera") == 0) {
-            tok = strtok(0, " ");
-            float x = strtod(tok, 0);
-            tok = strtok(0, " ");
-            float y = strtod(tok, 0);
-            tok = strtok(0, " ");
-            float z = strtod(tok, 0);
-            scene->camera.position = (Vector){x, y, z};
-            tok = strtok(0, " ");
-            x = strtod(tok, 0);
-            tok = strtok(0, " ");
-            y = strtod(tok, 0);
-            tok = strtok(0, " ");
-            z = strtod(tok, 0);
-            scene->camera.direction = (Vector){x, y, z};
-            tok = strtok(0, " ");
-            x = strtod(tok, 0);
-            tok = strtok(0, " ");
-            y = strtod(tok, 0);
-            tok = strtok(0, " ");
-            z = strtod(tok, 0);
-            scene->camera.cameraUp = (Vector){x, y, z};
-            tok = strtok(0, " ");
-            //Convert degrees to radians
-            scene->camera.cameraHa = strtod(tok, 0) * (M_PI / 180.0);
+        else if(str == "camera") {
+            float x, y, z, dx, dy, dz, ux, uy, uz, ha;
+            scn >> x >> y >> z >> dx >> dy >> dz >> ux >> uy >> uz >> ha;
+            camera.setPosition(Vector(x, y, z));
+            camera.setDirection(Vector(dx, dy, dz));
+            camera.setUpDirection(Vector(ux, uy, uz));
+            camera.setHalfFOV(ha);
         }
-        else if (strcmp(tok, "film_resolution") == 0) {
-            tok = strtok(0, " ");
-            int x = strtol(tok, 0, 10);
-            scene->file.width = x;
-            tok = strtok(0, " ");
-            x = strtol(tok, 0, 10);
-            scene->file.height = x;
+        else if(str == "film_resolution") {
+            int w, h;
+            scn >> w >> h;
+            img.setWidth(w);
+            img.setHeight(w);
         }
-        else if (strcmp(tok, "output_image") == 0) {
-            tok = strtok(0, " ");
-            scene->file.filename = std::string(tok);
+        else if(str == "output_image") {
+            std::string n;
+            scn >> n;
+            img.setFileName(n);
         }
-        else if (strcmp(tok, "sphere") == 0) {
-            tok = strtok(0, " ");
-            float x = strtod(tok, 0);
-            tok = strtok(0, " ");
-            float y = strtod(tok, 0);
-            tok = strtok(0, " ");
-            float z = strtod(tok, 0);
-            tok = strtok(0, " ");
-            float r = strtod(tok, 0);
-            Sphere s = (Sphere){(Vector){x, y, z}, r, curMat};
-            //Add the new sphere with the current material
-            scene->spheres.push_back(s);
-            scene->objNum++;
+        else if(str == "sphere") {
+            float x, y, z, r;
+            scn >> x >> y >> z >> r;
+            addSphere(Sphere(Vector(x, y, z), r, curMat));
         }
-        else if (strcmp(tok, "background") == 0) {
-            tok = strtok(0, " ");
-            float r = strtod(tok, 0);
-            tok = strtok(0, " ");
-            float g = strtod(tok, 0);
-            tok = strtok(0, " ");
-            float b = strtod(tok, 0);
-            scene->BGColor = (Vector){r, g, b};
+        else if(str == "background") {
+            float r, g, b;
+            scn >> r >> g >> b;
+            setBackground(Vector(r, g, b));
         }
-        else if (strcmp(tok, "material") == 0) {
-            tok = strtok(0, " ");
-            float r = strtod(tok, 0);
-            tok = strtok(0, " ");
-            float g = strtod(tok, 0);
-            tok = strtok(0, " ");
-            float b = strtod(tok, 0);
-            curMat.ambientColor = (Vector){r, g, b};
-            tok = strtok(0, " ");
-            r = strtod(tok, 0);
-            tok = strtok(0, " ");
-            g = strtod(tok, 0);
-            tok = strtok(0, " ");
-            b = strtod(tok, 0);
-            curMat.diffuseColor = (Vector){r, g, b};
-            tok = strtok(0, " ");
-            r = strtod(tok, 0);
-            tok = strtok(0, " ");
-            g = strtod(tok, 0);
-            tok = strtok(0, " ");
-            b = strtod(tok, 0);
-            curMat.specularColor = (Vector){r, g, b};
-            tok = strtok(0, " ");
-            curMat.cosPow = strtod(tok, 0);
-            tok = strtok(0, " ");
-            r = strtod(tok, 0);
-            tok = strtok(0, " ");
-            g = strtod(tok, 0);
-            tok = strtok(0, " ");
-            b = strtod(tok, 0);
-            curMat.transmissiveColor = (Vector){r, g, b};
-            tok = strtok(0, " ");
-            curMat.ior = strtod(tok, 0);
+        else if(str == "material") {
+            float ar, ag, ab, dr, dg, db, sr, sg, sb, ns, tr, tg, tb, ior;
+            scn >> ar >> ag >> ab >> dr >> dg >> db >> sr >> sg >> sb >> ns 
+                >> tr >> tg >> tb >> ior;
+            curMat.setAmbient(Vector(ar, ag, ab));
+            curMat.setDiffuse(Vector(dr, dg, db));
+            curMat.setSpecular(Vector(sr, sg, sb));
+            curMat.setTransmissive(Vector(tr, tg, tb));
+            curMat.setCosPower(ns);
+            curMat.setIndexRefract(ior);
         }
-        else if (strcmp(tok, "directional_light") == 0) {
-            tok = strtok(0, " ");
-            float r = strtod(tok, 0);
-            tok = strtok(0, " ");
-            float g = strtod(tok, 0);
-            tok = strtok(0, " ");
-            float b = strtod(tok, 0);
-            tok = strtok(0, " ");
-            float x = strtod(tok, 0);
-            tok = strtok(0, " ");
-            float y = strtod(tok, 0);
-            tok = strtok(0, " ");
-            float z = strtod(tok, 0);
-            Light d = (Light){(Vector){r, g, b}, (Vector){0, 0, 0}, (Vector){x, y, z}, 0, 0};
-            scene->directional.push_back(d);
+        else if(str == "directional_light") {
+            float r, g, b, x, y, z;
+            scn >> r >> g >> b >> x >> y >> z;
+            addDirectionalLight(Light(Vector(r, g, b), Vector(x, y, z), DIRECTIONAL));
         }
-        else if (strcmp(tok, "point_light") == 0) {
-            tok = strtok(0, " ");
-            float r = strtod(tok, 0);
-            tok = strtok(0, " ");
-            float g = strtod(tok, 0);
-            tok = strtok(0, " ");
-            float b = strtod(tok, 0);
-            tok = strtok(0, " ");
-            float x = strtod(tok, 0);
-            tok = strtok(0, " ");
-            float y = strtod(tok, 0);
-            tok = strtok(0, " ");
-            float z = strtod(tok, 0);
-            Light p = (Light){(Vector){r, g, b}, (Vector){x, y, z}, (Vector){0, 0, 0}, 0, 0};
-            scene->point.push_back(p);
+        else if(str == "point_light") {
+            float r, g, b, x, y, z;
+            scn >> r >> g >> b >> x >> y >> z;
+            addSpotLight(Light(Vector(r, g, b), Vector(x, y, z), POINT));
         }
-        else if (strcmp(tok, "spot_light") == 0) {
-            tok = strtok(0, " ");
-            float x = strtod(tok, 0);
-            tok = strtok(0, " ");
-            float y = strtod(tok, 0);
-            tok = strtok(0, " ");
-            float z = strtod(tok, 0);
-            Vector intense = (Vector){x, y, z};
-            tok = strtok(0, " ");
-            x = strtod(tok, 0);
-            tok = strtok(0, " ");
-            y = strtod(tok, 0);
-            tok = strtok(0, " ");
-            z = strtod(tok, 0);
-            Vector pos = (Vector){x, y, z};
-            tok = strtok(0, " ");
-            x = strtod(tok, 0);
-            tok = strtok(0, " ");
-            y = strtod(tok, 0);
-            tok = strtok(0, " ");
-            z = strtod(tok, 0);
-            Vector dir = (Vector){x, y, z};
-            tok = strtok(0, " ");
-            //Convert x and y to radians
-            x = strtod(tok, 0) * (M_PI / 180.0);
-            tok = strtok(0, " ");
-            y = strtod(tok, 0) * (M_PI / 180.0);
-            Light s = (Light){intense, pos, dir, x, y};
-            scene->spot.push_back(s);
+        else if(str == "spot_light") {
+            float r, g, b, px, py, pz, dx, dy, dz, angle1, angle2;
+            scn >> r >> g >> b >> px >> py >> pz >> dx >> dy >> dz >> angle1 >> angle2;
+            addSpotLight(Light(Vector(r, g, b), Vector(px, py, pz), Vector(dx, dy, dz), angle1, angle2));
         }
-        else if (strcmp(tok, "ambient_light") == 0) {
-            tok = strtok(0, " ");
-            float r = strtod(tok, 0);
-            tok = strtok(0, " ");
-            float g = strtod(tok, 0);
-            tok = strtok(0, " ");
-            float b = strtod(tok, 0);
-            scene->ambient = (Light){(Vector){r, g, b}, (Vector){0, 0, 0}, (Vector){0, 0, 0}, 0, 0};
+        else if(str == "ambient_light") {
+            float r, g, b;
+            scn >> r >> g >> b;
+            setAmbientLight(Light(Vector(r, g, b)));
         }
-        else if (strcmp(tok, "max_depth") == 0) {
-            tok = strtok(0, " ");
-            scene->depth = strtol(tok, 0, 10);
+        else if(str == "max_depth") {
+            int n;
+            scn >> n;
+            setMaxDepth(n);
         }
-        else if(strcmp(tok, "ray_type") == 0) {
-			tok = strtok(0, " ");
-			if(strcmp(tok, "perspective") == 0) {
-				scene->eyeray = PERSP;
-			}
-			else if(strcmp(tok, "orthographic") == 0) {
-				scene->eyeray = ORTHO;
-			}
-			else {
-				printf("Unknown Projection Type: %s\n", tok);
+        else if(str == "ray_type") {
+            std::string type;
+            scn >> type;
+            if(type == "perspective") {
+                setProjType(PERSP);
+            }
+            else if(type == "orthographic") {
+                setProjType(ORTHO);
+            }
+            else {
+                printf("Unknown Projection Type: %s\n", type.c_str());
 				printf("Defaulting to Perspective\n");
-				scene->eyeray = PERSP;
-			}
-		}
-        else if(strcmp(tok, "max_vertices") == 0) {
-            tok = strtok(0, " ");
-            int max = strtol(tok, 0, 10);
-            scene->vertexes.reserve(max);
+                setProjType(PERSP);
+            }
         }
-        else if(strcmp(tok, "max_normals") == 0) {
-            tok = strtok(0, " ");
-            int max = strtol(tok, 0, 10);
-            scene->normals.reserve(max);
+        else if(str == "vertex") {
+            float x, y, z;
+            scn >> x >> y >> z;
+            addVertex(Vector(x, y, z));
         }
-        else if(strcmp(tok, "vertex") == 0) {
-            if(scene->vertexes.capacity() == 0) {
-                printf("Error: max_vertices must be specified before vertexes\n");
-                return -1;
-            }
-            tok = strtok(0, " ");
-            float x = strtod(tok, 0);
-            tok = strtok(0, " ");
-            float y = strtod(tok, 0);
-            tok = strtok(0, " ");
-            float z = strtod(tok, 0);
-            scene->vertexes.push_back((Vector){x, y, z});
+        else if(str == "normal") {
+            float x, y, z;
+            scn >> x >> y >> z;
+            addNormal(Vector(x, y, z).norm());
         }
-        else if(strcmp(tok, "normal") == 0) {
-            if(scene->normals.capacity() == 0) {
-                printf("Error: max_normals must be specified before normals\n");
+        else if(str == "triangle") {
+            int v1, v2, v3;
+            scn >> v1 >> v2 >> v3;
+            std::vector<Vector> vl = getVertices();
+            int vn = vl.size();
+            if(v1 >= vn || v1 < 0) {
+                printf("Error: Specified vertex (%d) in triangle (%d) does not exist\n", v1, (int)getTriangles().size());
                 return -1;
             }
-            tok = strtok(0, " ");
-            float x = strtod(tok, 0);
-            tok = strtok(0, " ");
-            float y = strtod(tok, 0);
-            tok = strtok(0, " ");
-            float z = strtod(tok, 0);
-            scene->normals.push_back((Vector){x, y, z});
+            if(v2 >= vn || v2 < 0) {
+                printf("Error: Specified vertex (%d) in triangle (%d) does not exist\n", v2, (int)getTriangles().size());
+                return -1;
+            }
+            if(v3 >= vn || v3 < 0) {
+                printf("Error: Specified vertex (%d) in triangle (%d) does not exist\n", v3, (int)getTriangles().size());
+                return -1;
+            }
+            addTriangle(Triangle(vl[v1], vl[v2], vl[v3]));
         }
-        else if(strcmp(tok, "triangle") == 0) {
-            tok = strtok(0, " ");
-            int one = strtol(tok, 0, 10);
-            if(one > (signed)scene->vertexes.size()-1) {
-                printf("Error: Specified vertex (%d) does not exist\n", one);
+        else if(str == "normal_triangle") {
+            int v1, v2, v3, n1, n2, n3;
+            scn >> v1 >> v2 >> v3 >> n1 >> n2 >> n3;
+            std::vector<Vector> vl = getVertices();
+            int vn = vl.size();
+            std::vector<Vector> nl = getNormals();
+            int nn = nl.size();
+            if(v1 >= vn || v1 < 0) {
+                printf("Error: Specified vertex (%d) in triangle (%d) does not exist\n", v1, (int)getTriangles().size());
                 return -1;
             }
-            tok = strtok(0, " ");
-            int two = strtol(tok, 0, 10);
-            if(two > (signed)scene->vertexes.size()-1) {
-                printf("Error: Specified vertex (%d) does not exist\n", two);
+            if(v2 >= vn || v2 < 0) {
+                printf("Error: Specified vertex (%d) in triangle (%d) does not exist\n", v2, (int)getTriangles().size());
                 return -1;
             }
-            tok = strtok(0, " ");
-            int three = strtol(tok, 0, 10);
-            if(three > (signed)scene->vertexes.size()-1) {
-                printf("Error: Specified vertex (%d) does not exist\n", three);
+            if(v3 >= vn || v3 < 0) {
+                printf("Error: Specified vertex (%d) in triangle (%d) does not exist\n", v3, (int)getTriangles().size());
                 return -1;
             }
-            Triangle t;
-            t.vertices[0] = scene->vertexes[one];
-            t.vertices[1] = scene->vertexes[two];
-            t.vertices[2] = scene->vertexes[three];
-            t.normals[0] = norm(cross(sub(t.vertices[1], t.vertices[0]), sub(t.vertices[2], t.vertices[0])));
-            t.normals[2] = t.normals[1] = t.normals[0];
-            t.normals[3] = t.normals[4] = t.normals[5] = multiply(t.normals[0], -1);
-            t.ntri = false;
-            t.mat = curMat;
-            scene->triangles.push_back(t);
-            scene->objNum++;
+            if(n1 >= nn || n1 < 0) {
+                printf("Error: Specified normal (%d) in triangle (%d) does not exist\n", n1, (int)getTriangles().size());
+                return -1;
+            }
+            if(n2 >= nn || n2 < 0) {
+                printf("Error: Specified normal (%d) in triangle (%d) does not exist\n", n2, (int)getTriangles().size());
+                return -1;
+            }
+            if(n3 >= nn || n3 < 0) {
+                printf("Error: Specified normal (%d) in triangle (%d) does not exist\n", n3, (int)getTriangles().size());
+                return -1;
+            }
+            addTriangle(Triangle(vl[v1], vl[v2], vl[v3], nl[n1], nl[n2], nl[n3]));
         }
-        else if(strcmp(tok, "normal_triangle") == 0) {
-            tok = strtok(0, " ");
-            int x = strtol(tok, 0, 10);
-            if(x > (signed)scene->vertexes.size()-1) {
-                printf("Error: Specified vertex (%d) does not exist\n", x);
-                return -1;
-            }
-            tok = strtok(0, " ");
-            int y = strtol(tok, 0, 10);
-            if(y > (signed)scene->vertexes.size()-1) {
-                printf("Error: Specified vertex (%d) does not exist\n", y);
-                return -1;
-            }
-            tok = strtok(0, " ");
-            int z = strtol(tok, 0, 10);
-            if(z > (signed)scene->vertexes.size()-1) {
-                printf("Error: Specified vertex (%d) does not exist\n", z);
-                return -1;
-            }
-            tok = strtok(0, " ");
-            int nx = strtol(tok, 0, 10);
-            if(nx > (signed)scene->normals.size()-1) {
-                printf("Error: Specified normal (%d) does not exist\n", nx);
-                return -1;
-            }
-            tok = strtok(0, " ");
-            int ny = strtol(tok, 0, 10);
-            if(ny > (signed)scene->normals.size()-1) {
-                printf("Error: Specified normal (%d) does not exist\n", ny);
-                return -1;
-            }
-            tok = strtok(0, " ");
-            int nz = strtol(tok, 0, 10);
-            if(nz > (signed)scene->normals.size()-1) {
-                printf("Error: Specified normal (%d) does not exist\n", nz);
-                return -1;
-            }
-            Triangle t;
-            t.vertices[0] = scene->vertexes[x];
-            t.vertices[1] = scene->vertexes[y];
-            t.vertices[2] = scene->vertexes[z];
-            t.normals[0] = scene->normals[nx];
-            t.normals[1] = scene->normals[ny];
-            t.normals[2] = scene->normals[nz];
-            t.normals[3] = multiply(t.normals[0], -1);
-            t.normals[4] = multiply(t.normals[1], -1);
-            t.normals[5] = multiply(t.normals[2], -1);
-            t.ntri = true;
-            t.mat = curMat;
-            scene->triangles.push_back(t);
-            scene->objNum++;
+        else if(str == "bvh_threshold") {
+            int thresh;
+            scn >> thresh;
+            setBVHThreshold(thresh);
         }
-        else if(strcmp(tok, "plane") == 0) {
-			tok = strtok(0, " ");
-			float x = strtod(tok, 0);
-			tok = strtok(0, " ");
-			float y = strtod(tok, 0);
-			tok = strtok(0, " ");
-			float z = strtod(tok, 0);
-			tok = strtok(0, " ");
-			float nx = strtod(tok, 0);
-			tok = strtok(0, " ");
-			float ny = strtod(tok, 0);
-			tok = strtok(0, " ");
-			float nz = strtod(tok, 0);
-			Plane pl;
-			pl.point = (Vector){x, y, z};
-			pl.normal = norm((Vector){nx, ny, nz});
-			pl.inormal = multiply(pl.normal, -1);
-			pl.mat = curMat;
-			scene->planes.push_back(pl);
-			scene->objNum++;
-		}
-		else if(strcmp(tok, "bvh_threshold") == 0) {
-			tok = strtok(0, " ");
-			int thresh = strtol(tok, 0, 10);
-			scene->bvhthresh = thresh;
-		}
-		else if(strcmp(tok, "bvh_depth") == 0) {
-			tok = strtok(0, " ");
-			int depth = strtol(tok, 0, 10);
-			scene->bvhdepth = depth;
-		}
-		else if(strcmp(tok, "sample_rate") == 0) {
-			tok = strtok(0, " ");
-			int sample = strtol(tok, 0, 10);
-			scene->sampleNum = sample;
-		}
+        else if(str == "bvh_depth") {
+            int depth;
+            scn >> depth;
+            setBVHDepth(depth);
+        }
+        else if(str == "sample_rate") {
+            int rate;
+            scn >> rate;
+            setSampleRate(rate);
+        }
     }
-    fclose(scn);
+    scn.close();
     return 1;
 }
 
 void printScene(Scene *scn) {
     printf("\nCamera:\n");
-    printCamera(scn->camera);
+    printCamera(scn->getCamera());
     printf("\n");
     
     printf("Spheres:\n");
-    int num = scn->spheres.size();
+    int num = scn->getSpheres().size();
     if(num != 0) {
         for (int i = 0; i < num; i++) {
-            printSphere(scn->spheres[i]);
+            printSphere(scn->getSpheres()[i]);
         }
     }
     else {
@@ -408,18 +231,18 @@ void printScene(Scene *scn) {
     printf("\n");
     
     printf("Image:\n");
-    printImage(scn->file);
+    printImage(scn->getImage());
     printf("\n");
     
     printf("Background Color: ");
-    printVector(scn->BGColor);
+    printVector(scn->getBGColor());
     printf("\n");
     
     printf("Directional Lights:\n");
-    num = scn->directional.size();
+    num = scn->getDirLights().size();
     if (num > 0) {
         for (int i = 0; i < num; i++) {
-            printLight(scn->directional[i]);
+            printLight(scn->getDirLights()[i]);
         }
     }
     else {
@@ -428,10 +251,10 @@ void printScene(Scene *scn) {
     printf("\n");
     
     printf("Point Lights:\n");
-    num = scn->point.size();
+    num = scn->getPointLights().size();
     if (num > 0) {
         for (int i = 0; i < num; i++) {
-            printLight(scn->point[i]);
+            printLight(scn->getPointLights()[i]);
         }
     }
     else {
@@ -440,10 +263,10 @@ void printScene(Scene *scn) {
     printf("\n");
     
     printf("Spot Lights:\n");
-    num = scn->spot.size();
+    num = scn->getSpotLights().size();
     if (num > 0) {
         for (int i = 0; i < num; i++) {
-            printLight(scn->spot[i]);
+            printLight(scn->getSpotLights()[i]);
         }
     }
     else {
@@ -452,12 +275,12 @@ void printScene(Scene *scn) {
     printf("\n");
     
     printf("Ambient Light:\n");
-    printLight(scn->ambient);
+    printLight(scn->getAmbLight());
     printf("\n");
     
-    printf("Depth: %d\n", scn->depth);
+    printf("Depth: %d\n", scn->getDepth());
     
-    if(scn->eyeray == PERSP) {
+    if(scn->getProjType() == PERSP) {
         printf("Projection Type: Perspective\n\n");
     }
     else {
@@ -465,17 +288,17 @@ void printScene(Scene *scn) {
     }
     
     printf("Triangles:\n");
-    num = scn->triangles.size();
+    num = scn->getTriangles().size();
     if(num != 0) {
 		for(int i = 0; i < num; i++) {
-			printTriangle(scn->triangles[i]);
+			printTriangle(scn->getTriangles()[i]);
 		}	
 	}
 	else {
 		printf("No Triangles\n");
 	}
 	printf("\n");
-	
+	/*
 	printf("Planes:\n");
 	num = scn->planes.size();
 	if(num != 0) {
@@ -487,53 +310,46 @@ void printScene(Scene *scn) {
 		printf("No Planes\n");
 	}
     printf("\n");
+    */
 }
 
 void printCamera(Camera camera) {
     printf("Position: ");
-    printVector(camera.position);
+    printVector(camera.getPosition());
     printf("Direction: ");
-    printVector(camera.direction);
+    printVector(camera.getDirection());
     printf("Up Vector: ");
-    printVector(camera.cameraUp);
-    printf("Half Angle: %f\n", camera.cameraHa);
+    printVector(camera.getUpDirection());
+    printf("Half Angle: %f\n", camera.getHalfFOV());
 }
 
 void printTriangle(Triangle tri) {
     printf("Vertex1: ");
-    printVector(tri.vertices[0]);
+    printVector(tri.getVertex(0));
     printf("Vertex2: ");
-    printVector(tri.vertices[1]);
+    printVector(tri.getVertex(1));
     printf("Vertex3: ");
-    printVector(tri.vertices[2]);
+    printVector(tri.getVertex(2));
     printf("Normal: ");
-    printVector(tri.normals[0]);
-    if(tri.ntri) {
+    printVector(tri.getNormal(0));
+    if(tri.isNormal()) {
         printf("Normal2: ");
-        printVector(tri.normals[1]);
+        printVector(tri.getNormal(1));
         printf("Normal3: ");
-        printVector(tri.normals[2]);
-    }
-    printf("RNormal: ");
-    printVector(tri.normals[3]);
-    if(tri.ntri) {
-        printf("RNormal2: ");
-        printVector(tri.normals[4]);
-        printf("RNormal3: ");
-        printVector(tri.normals[5]);
+        printVector(tri.getNormal(2));
     }
     printf("Material:\n");
-    printMaterial(tri.mat);
+    printMaterial(tri.getMaterial());
 }
 
 void printSphere(Sphere sph) {
     printf("Position: ");
-    printVector(sph.position);
-    printf("Radius: %f\n", sph.radius);
+    printVector(sph.getPosition());
+    printf("Radius: %f\n", sph.getRadius());
     printf("Material:\n");
-    printMaterial(sph.mat);
+    printMaterial(sph.getMaterial());
 }
-
+/*
 void printPlane(Plane pl) {
 	printf("Point: ");
 	printVector(pl.point);
@@ -561,34 +377,34 @@ void printRect(Rectangle rec) {
 	printf("Material:\n");
 	printMaterial(rec.mat);
 }
-
+*/
 void printMaterial(Material mat) {
     printf("Ambient Color: ");
-    printVector(mat.ambientColor);
+    printVector(mat.getAmbient());
     printf("Diffuse Color: ");
-    printVector(mat.diffuseColor);
+    printVector(mat.getDiffuse());
     printf("Specular Color: ");
-    printVector(mat.specularColor);
-    printf("Cosin Power: %f\n", mat.cosPow);
+    printVector(mat.getSpecular());
+    printf("Cosin Power: %f\n", mat.getCosPower());
     printf("Transmissive Color: ");
-    printVector(mat.transmissiveColor);
-    printf("ior: %f\n", mat.ior);
+    printVector(mat.getTransmissive());
+    printf("ior: %f\n", mat.getIndexRefract());
 }
 
 void printLight(Light l) {
     printf("Color: ");
-    printVector(l.color);
+    printVector(l.getColor());
     printf("Position: ");
-    printVector(l.position);
+    printVector(l.getPosition());
     printf("Direction: ");
-    printVector(l.direction);
-    printf("Angle: (%f %f)\n", l.angle1, l.angle2);
+    printVector(l.getDirection());
+    printf("Angle: (%f %f)\n", l.getSpotAngle(), l.getMaxAngle());
 }
 
-void printImage(File img) {
-    printf("File Name: %s\n", img.filename.c_str());
-    printf("Width: %d\n", img.width);
-    printf("Height: %d\n", img.height);
+void printImage(rt::Image img) {
+    printf("File Name: %s\n", img.getFileName().c_str());
+    printf("Width: %d\n", img.getWidth());
+    printf("Height: %d\n", img.getHeight());
 }
 
 void printVector(Vector fVec) {

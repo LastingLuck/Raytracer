@@ -20,6 +20,7 @@ enum LightType {
 class Vector {
     public:
         Vector();
+        Vector(float val);
         Vector(float xval, float yval, float zval);
         
         float x;
@@ -34,6 +35,8 @@ class Vector {
         static float length(const Vector& u, const Vector& v);
         //Square version of length()
         static float lengthSq(const Vector& u, const Vector& v);
+        static Vector zero() { return Vector(); }
+        static Vector one() { return Vector(1); }
         
         //Returns the magnitude of the vector
         float magnitude();
@@ -63,10 +66,10 @@ class Material {
         Material(Vector ambient, Vector diffuse, Vector specular);
         Material(Vector amb, Vector dif, Vector spec, Vector trans, float pow, float iref);
         
-        void setAmbient(Vector amb) { ambientColor = amb; }
-        void setDiffuse(Vector dif) { diffuseColor = dif; }
-        void setSpecular(Vector spec) { specularColor = spec; }
-        void setTransmissive(Vector trns) { transmissiveColor = trns; }
+        void setAmbient(const Vector& amb) { ambientColor = amb; }
+        void setDiffuse(const Vector& dif) { diffuseColor = dif; }
+        void setSpecular(const Vector& spec) { specularColor = spec; }
+        void setTransmissive(const Vector& trns) { transmissiveColor = trns; }
         void setCosPower(float pow) { cosPow = pow; }
         void setIndexRefract(float index) { ior = index; }
         
@@ -110,12 +113,14 @@ class Triangle {
         Triangle(Vector v1, Vector v2, Vector v3);
         Triangle(Vector v1, Vector v2, Vector v3, Vector n1, Vector n2, Vector n3);
         
+        void setMaterial(const Material& material) { mat = material; }
         void setVertex(const Vector& vert, int index) { vertices[clamp(index, 0, 2)] = vert; }
         void setVertices(const Vector verts[3]);
         void setNormal(const Vector& norm) { normals[0] = normals[1] = normals[2] = norm; ntri = false;}
         void setNormal(const Vector& norm, int index) { normals[clamp(index, 0, 2)] = norm; ntri = true; }
         void setNormals(const Vector norms[3]);
         
+        Material getMaterial() const { return mat; }
         Vector getNormal() const { return normals[0]; }
         Vector getNormal(int index) const { return normals[clamp(index, 0, 2)]; }
         Vector getVertex(int index) const { return vertices[clamp(index, 0, 2)]; }
@@ -128,6 +133,7 @@ class Triangle {
         Vector vertices[3];
         Vector normals[3];
         bool ntri;
+        Material mat;
 };
 
 class Light {
@@ -135,7 +141,7 @@ class Light {
         Light();
         Light(const Vector& lightColor);
         Light(const Vector& lightColor, const Vector& lightPosDir, enum LightType type);
-        Light(const Vector& lightColor, const Vector& lightDir, float spotAngle, float maxAngle);
+        Light(const Vector& lightColor, const Vector& lightPos, const Vector& lightDir, float spotAngle, float maxAngle);
         
         //these do not affect the type of light (i.e. changing direction of a spot
         //light has no effect)
@@ -162,7 +168,7 @@ class Light {
 class Camera {
     public:
         Camera();
-        Camera(const Vector& pos, Vector dir, Vector upDir, double fov);
+        Camera(const Vector& pos, const Vector& dir, const Vector& upDir, float fov);
         
         void setPosition(const Vector& pos) { position = pos; }
         void setDirection(const Vector& dir) { direction = dir; }
@@ -211,21 +217,44 @@ class Scene {
         void init(); //< (re)initialize everything to default values
         //Parses the scene text file and fills out a SceneData struct
         int parseScene(char* file);
-        double getPlaneDist();
+        float getPlaneDist();
+        void clearPools();
         
         void setCamera(const Camera& cam) { camera = cam; }
         void setProjType(enum ProjType view) { proj = view; }
         void setImage(const rt::Image& image) { img = image; }
-        void addSphere(const Sphere& sphere) { spheres.push_back(sphere); }
+        void addSphere(const Sphere& sphere) { spheres.push_back(sphere); objNum++; }
         void addVertex(const Vector& vert) { vertexPool.push_back(vert); }
         void addNormal(const Vector& norm) { normalPool.push_back(norm); }
-        void addTriangle(const Triangle& tri) { triangles.push_back(tri); }
+        void addTriangle(const Triangle& tri) { triangles.push_back(tri); objNum++; }
         void setBackground(const Vector& bg) { bgColor = bg; }
         void setMaxDepth(int maximumDepth) { maxDepth = maximumDepth; }
         void addDirectionalLight(const Light& dirLight) { directional.push_back(dirLight); }
         void addPointLight(const Light& pointLight) { point.push_back(pointLight); }
         void addSpotLight(const Light& spotLight) { spot.push_back(spotLight); }
         void setAmbientLight(const Light& ambLight) { ambient = ambLight; }
+        void setBVHDepth(int depth) { bvhDepth = depth; }
+        void setBVHThreshold(int threshold) { bvhThresh = threshold; }
+        void setSampleRate(int rate) { sampleNum = rate; }
+        
+        Camera getCamera() const { return camera; }
+        enum ProjType getProjType() const { return proj; }
+        rt::Image getImage() const { return img; }
+        std::vector<Sphere> getSpheres() const { return spheres; }
+        std::vector<Vector> getVertices() const { return vertexPool; }
+        std::vector<Vector> getNormals() const { return normalPool; }
+        std::vector<Triangle> getTriangles() const { return triangles; }
+        Vector getBGColor() const { return bgColor; }
+        int getDepth() const { return maxDepth; }
+        std::vector<Light> getDirLights() const { return directional; }
+        std::vector<Light> getPointLights() const { return point; }
+        std::vector<Light> getSpotLights() const { return spot; }
+        Light getAmbLight() const { return ambient; }
+        int getNumObjects() const { return objNum; }
+        int getBVHDepth() const { return bvhDepth; }
+        int getBVHThreshold() const { return bvhThresh; }
+        bool useBvh() const { return useBVH; }
+        int getSampleRate() const { return sampleNum; }
         
     private:
         //Camera
@@ -252,9 +281,10 @@ class Scene {
         int objNum;
         //BVH
         int bvhDepth;
+        int bvhThresh;
         bool useBVH;
         //Super Sample
-        int sampleNum = 1;
+        int sampleNum;
 };
 
 //Print functions used to print the contents of SceneData to test it
