@@ -54,18 +54,46 @@
 
 
 Ray::Ray() {
-    p(); //< init to (0, 0, 0)
-    d();
+    p = Vector(); //< init to (0, 0, 0)
+    d = Vector();
+}
+
+Ray::Ray(const Vector& pos, const Vector& dir) {
+    p = pos;
+    d = dir;
+}
+
+Intersect::Intersect() {
+    normal = Vector();
+    r = Ray();
+    dist = 0;
+    p = Vector();
+    m = Material();
+}
+
+Intersect::Intersect(const Vector& norm, const Ray& ray, double distsq, const Vector& point, const Material& mat) {
+    normal = norm;
+    r = ray;
+    dist = distsq;
+    p = point;
+    m = mat;
+}
+
+RayTrace::RayTrace() {
+    std::srand(std::time(0));
+    forcebvh = false;
+}
+
+RayTrace::RayTrace(bool bvhforce) {
+    std::srand(std::time(0));
+    forcebvh = bvhforce;
 }
 
 //Performs a raytrace on the Scene scn with projection type proj
-Image* RayTrace(SceneData* scn) {
-	std::srand(std::time(0));
+Image* RayTrace::rayTrace(const Scene& scn) {
 	#ifdef DEBUG
     printf("Beginning Trace\n");
     #endif
-    scn->vertexes.clear();
-    scn->normals.clear();
     bool useBVH = false;
     //#ifdef DEBUG
     //Vector botleft, topright;
@@ -91,14 +119,14 @@ Image* RayTrace(SceneData* scn) {
 		makeBVH(scn, scn->bvh, 0);
 	}
 	*/
-	ProjType proj = scn->eyeray;
-    int width = scn->file.width, height = scn->file.height;
+	ProjType proj = scn.getProjType();
+    int width = scn.getImage().getWidth(), height = scn.getImage().getHeight();
     Image* dest = new Image(width, height);
-    Camera c = scn->camera;
+    Camera c = scn.getCamera();
     Vector p1, p2;
     //Distance to the viewing plane
-    double planeDist = getPlaneDist(c.cameraHa, height);
-    getExtremePoints(&c, planeDist, width, height, p1, p2);
+    double planeDist = scn.getPlaneDist();
+    getExtremePoints(c, planeDist, width, height, p1, p2);
     #ifdef DEBUG
     printf("P1: (%f %f %f)\n", p1.x, p1.y, p1.z);
     printf("P2: (%f %f %f)\n", p2.x, p2.y, p2.z);
@@ -107,11 +135,12 @@ Image* RayTrace(SceneData* scn) {
     int totalpix = width * height;
     int tenper = .1 * totalpix;
     int count = 0;
-    int sampleNm = scn->sampleNum;
+    int sampleNm = scn.getSampleRate();
     bool sample = false;
     if(sampleNm > 1) {
 		sample = true;
 	}
+    Pixel pix;
     #ifdef PARALLEL
     #pragma omp parallel for collapse(2) schedule(static, 125)
     #endif
@@ -128,10 +157,9 @@ Image* RayTrace(SceneData* scn) {
             if(sample) {
                 Vector color[sampleNm];
 				for(int j = 0; j < sampleNm; j++) {
-					Ray trace = getRay(x, y, width, height, p1, p2, planeDist, &c, proj, sample);
-					color[j] = evaluateRayTree(scn, &trace, 0, useBVH);
+					Ray trace = getRay(x, y, width, height, p1, p2, planeDist, c, proj, sample);
+					color[j] = evaluateRayTree(scn, trace, 0, useBVH);
 				}
-				Pixel pix;
 				Vector col = ave(color, sampleNm);
                 //for(int k = 0; k < sampleNm; k++) {
                 ////    printf("Color %d: (%f %f %f)\n", k, color.x, color.y,
@@ -142,9 +170,8 @@ Image* RayTrace(SceneData* scn) {
 				dest->GetPixel(x, y) = pix;
 			}
             else {
-				Ray trace = getRay(x, y, width, height, p1, p2, planeDist, &c, proj, sample);
-				Pixel pix;
-				Vector col = evaluateRayTree(scn, &trace, 0, useBVH);
+				Ray trace = getRay(x, y, width, height, p1, p2, planeDist, c, proj, sample);
+				Vector col = evaluateRayTree(scn, trace, 0, useBVH);
 				pix.SetClamp(col.x*255.0, col.y*255.0, col.z*255.0);
 				dest->GetPixel(x, y) = pix;
 			}
@@ -155,59 +182,45 @@ Image* RayTrace(SceneData* scn) {
     return dest;
 }
 
-Vector evaluateRayTree(SceneData* scn, Ray* ray, int depth, bool useBVH) {
-    if(depth > scn->depth) {
+Vector RayTrace::evaluateRayTree(const Scene& scn, const Ray& ray, int depth, bool useBVH) const {
+    if(depth > scn.getDepth()) {
         //return scn->BGColor;
-        return (Vector){0, 0, 0};
+        return Vector();
     }
     Intersect* in;
     //printf("Dir2: (%f %f %f)\n", ray->d.x, ray->d.y, ray->d.z);
     bool hit = 0;
     //Go through each object and check for intersection
     if((in = intersect(ray, scn, .001, std::numeric_limits<double>::infinity(), useBVH))) {
-        
         hit = 1;
     }
     if(hit) {
         return getColor(in, scn, depth, useBVH);
     }
     else {
-        return scn->BGColor;
+        return scn.getBGColor();
     }
 }
 
 //Tests if there is an intersection between a ray and objects
-Intersect* intersect(Ray* trace, SceneData* scn, double dmin, double dmax, bool useBVH) {
+Intersect* RayTrace::intersect(const Ray& trace, const Scene& scn, double dmin, double dmax, bool useBVH) const {
 	Intersect* min = 0;					 
 	if(!useBVH) {
-		Intersect* sph = intersectSpheres(trace, scn->spheres, dmin, dmax);
-		Intersect* tri = intersectTriangle(trace, scn->triangles, dmin, dmax);
-		Intersect* pln = intersectPlane(trace, scn->planes, dmin, dmax);
+		Intersect* sph = intersectSpheres(trace, scn.getSpheres(), dmin, dmax);
+		Intersect* tri = intersectTriangle(trace, scn.getTriangles(), dmin, dmax);
+		//Intersect* pln = intersectPlane(trace, scn->planes, dmin, dmax);
 		if(sph != 0) {
-			min = new Intersect;
-			min->normal = sph->normal;
-			min->r = sph->r;
-			min->dist = sph->dist;
-			min->p = sph->p;
-			min->m = sph->m;
+			min = new Intersect(sph->normal, sph->r, sph->dist, sph->p, sph->m);
 			delete sph;
 			sph = 0;
 		}
 		if(tri != 0) {
 			if(min == 0) {
-				//min = tri;
-				min = new Intersect;
-				min->normal = tri->normal;
-				min->r = tri->r;
-				min->dist = tri->dist;
-				min->p = tri->p;
-				min->m = tri->m;
+				min = new Intersect(tri->normal, tri->r, tri->dist, tri->p, tri->m);
 				delete tri;
 				tri = 0;
 			}
 			else if(min->dist > tri->dist) {
-				//delete min;
-				//min = tri;
 				min->normal = tri->normal;
 				min->r = tri->r;
 				min->dist = tri->dist;
@@ -217,15 +230,11 @@ Intersect* intersect(Ray* trace, SceneData* scn, double dmin, double dmax, bool 
 				tri = 0;
 			}
 		}
+        /*
 		if(pln != 0) {
 			if(min == 0) {
 				//min = pln;
-				min = new Intersect;
-				min->normal = pln->normal;
-				min->r = pln->r;
-				min->dist = pln->dist;
-				min->p = pln->p;
-				min->m = pln->m;
+				min = new Intersect(pln->normal, pln->r, pln->dist, pln->p, pln->m);
 				delete pln;
 				pln = 0;
 			}
@@ -241,29 +250,32 @@ Intersect* intersect(Ray* trace, SceneData* scn, double dmin, double dmax, bool 
 				pln = 0;
 			}
 		}
+        */
 		if(min != 0) {
 			//printf("Dir3: (%f %f %f)\n", min->r.d.x, min->r.d.y, min->r.d.z);
 		}
 	}
 	else {
-		min = intersectBVH(trace, scn->bvh, dmin, dmax);
+		//min = intersectBVH(trace, scn.getBVH(), dmin, dmax);
 	}
 	return min;
 }
 
-Intersect* intersectSpheres(Ray* trace, std::vector<Sphere> objList, double dmin, double dmax) {
+Intersect* RayTrace::intersectSpheres(const Ray& trace, const std::vector<Sphere>& objList, double dmin, double dmax) const {
     Intersect* in = 0;
     int sphnum = objList.size();
     if(sphnum == 0) {
 		return 0;
 	}
-	double dd = dot(trace->d, trace->d);
+    Vector posit = trace.getPosition();
+    Vector direc = trace.getDirection();
+	double dd = Vector::dot(direc, direc);
 	for(int i = 0; i < sphnum; i++) {
 		Sphere obj = objList[i];
-		Vector ec = sub(trace->p, obj.position);
-		double dec = dot(trace->d, ec);
+		Vector ec = posit - obj.getPosition();
+		double dec = Vector::dot(direc, ec);
 		
-		double det = (dec*dec) - dd*(dot(ec, ec) - (obj.radius*obj.radius));
+		double det = (dec*dec) - dd*(Vector::dot(ec, ec) - (obj.getRadius()*obj.getRadius()));
 		if (det < 0.0) {
 			continue;
 		}
@@ -273,83 +285,63 @@ Intersect* intersectSpheres(Ray* trace, std::vector<Sphere> objList, double dmin
 		double t2 = (-dec - sqrtdet) / dd;
 		//t is the number of rays it takes to get to the object. Make that into
 		//a number to check bounds with (distance to intersect)
-		Vector p1 = multiply(trace->d, t1);
-		Vector p2 = multiply(trace->d, t2);
-		double d1 = lengthsq(p1);
-		double d2 = lengthsq(p2);
+		Vector p1 = direc * t1;
+		Vector p2 = direc * t2;
+		double d1 = p1.magnitudeSq();
+		double d2 = p2.magnitudeSq();
 		if(t1 < t2) {
 			if(t1 > 0 && d1 > dmin && d1 < dmax) {
-				Vector point = add(trace->p, p1);
+				Vector point = posit + p1;
 				if(in == 0) {
-					in = new Intersect;
-					in->r = *trace;
-					in->dist = d1;
-					in->m = obj.mat;
-					in->p = point;
-					in->normal = norm(sub(point, obj.position));
+					in = new Intersect((point - obj.getPosition()).norm(), trace, d1, point, obj.getMaterial());
 				}
 				else if(d1 < in->dist) {
-					in->r = *trace;
+					in->r = trace;
 					in->dist = d1;
-					in->m = obj.mat;
+					in->m = obj.getMaterial();
 					in->p = point;
-					in->normal = norm(sub(point, obj.position));
+					in->normal = (in->p - obj.getPosition()).norm();
 				}
 			}
 			else if(t2 > 0 && d2 > dmin && d2 < dmax) {
-				Vector point = add(trace->p, p2);
+				Vector point = posit + p2;
 				if(in == 0) {
-					in = new Intersect;
-					in->r = *trace;
-					in->dist = d2;
-					in->m = obj.mat;
-					in->p = point;
-					in->normal = norm(sub(in->p, obj.position));
+					in = new Intersect((point - obj.getPosition()).norm(), trace, d2, point, obj.getMaterial());
 				}
 				else if(d2 < in->dist) {
-					in->r = *trace;
+					in->r = trace;
 					in->dist = d2;
-					in->m = obj.mat;
+					in->m = obj.getMaterial();
 					in->p = point;
-					in->normal = norm(sub(in->p, obj.position));
+					in->normal = (in->p - obj.getPosition()).norm();
 				}
 			}
 		}
 		else {
 			if(t2 > 0 && d2 > dmin && d2 < dmax) {
-				Vector point = add(trace->p, p2);
+				Vector point = posit + p2;
 				if(in == 0) {
-					in = new Intersect;
-					in->r = *trace;
-					in->dist = d2;
-					in->m = obj.mat;
-					in->p = point;
-					in->normal = norm(sub(in->p, obj.position));
+					in = new Intersect((point - obj.getPosition()).norm(), trace, d2, point, obj.getMaterial());
 				}
 				else if(d2 < in->dist) {
-					in->r = *trace;
+					in->r = trace;
 					in->dist = d2;
-					in->m = obj.mat;
+					in->m = obj.getMaterial();
 					in->p = point;
-					in->normal = norm(sub(in->p, obj.position));
+					in->normal = (in->p - obj.getPosition()).norm();
 				}
 			}
 			else if(t1 > 0 && d1 > dmin && d1 < dmax) {
-				Vector point = add(trace->p, p1);
+				Vector point = posit + p1;
 				if(in == 0) {
-					in = new Intersect;
-					in->r = *trace;
-					in->dist = d1;
-					in->m = obj.mat;
-					in->p = point;
-					in->normal = norm(sub(in->p, obj.position));
+					in = new Intersect((point-obj.getPosition()).norm(), trace, d1, point, obj.getMaterial());
 				}
 				else if(d1 < in->dist) {
-					in->r = *trace;
+					in->r = trace;
 					in->dist = d1;
-					in->m = obj.mat;
+					in->m = obj.getMaterial();
 					in->p = point;
-					in->normal = norm(sub(in->p, obj.position));
+					in->normal = (point - obj.getPosition()).norm();
 				}
 			}
 		}
@@ -357,20 +349,20 @@ Intersect* intersectSpheres(Ray* trace, std::vector<Sphere> objList, double dmin
     return in;
 }
 
-Intersect* intersectTriangle(Ray* trace, std::vector<Triangle> triList, double dmin, double dmax) {
+Intersect* RayTrace::intersectTriangle(const Ray& trace, const std::vector<Triangle>& triList, double dmin, double dmax) const {
     Intersect* in = 0;
     int trinum = triList.size();
     if(trinum == 0) {
 		return 0;
 	}
     Triangle t;
-    Vector rd = trace->d;
-    Vector rp = trace->p;
+    Vector rd = trace.getDirection();
+    Vector rp = trace.getPosition();
     for(int i = 0; i < trinum; i++) {
 		t = triList[i];
-		Vector ae = sub(t.vertices[0], rp);
-		Vector ab = sub(t.vertices[0], t.vertices[1]);
-		Vector ac = sub(t.vertices[0], t.vertices[2]);
+		Vector ae = t.getVertex(0) - rp;
+		Vector ab = t.getVertex(0) - t.getVertex(1);
+		Vector ac = t.getVertex(0) - t.getVertex(2);
 		double detA = ab.x*(ac.y*rd.z-rd.y*ac.z) + ab.y*(ac.z*rd.x-rd.z*ac.x) + ab.z*(ac.x*rd.y-ac.y*rd.x);
 		double dett = ac.z*(ab.x*ae.y-ab.y*ae.x) + ac.y*(ae.x*ab.z-ab.x*ae.z) + ac.x*(ab.y*ae.z-ab.z*ae.y);
 		double tval = dett / detA;
@@ -382,69 +374,68 @@ Intersect* intersectTriangle(Ray* trace, std::vector<Triangle> triList, double d
 		double beta = detb / detA;
 		double gamma = detg / detA;
 		if(beta >= 0 && beta <= 1 && gamma >= 0  && gamma <= 1 && beta + gamma <= 1) {
-			Vector point = add(t.vertices[0], add(multiply(sub(t.vertices[1], t.vertices[0]),beta), 
-								multiply(sub(t.vertices[2], t.vertices[0]),gamma)));
-			double dist = lengthsq(sub(point, trace->p));
+			//Vector point = add(t.vertices[0], add(multiply(sub(t.vertices[1], t.vertices[0]),beta), 
+			//					multiply(sub(t.vertices[2], t.vertices[0]),gamma)));
+            Vector point = t.getVertex(0) + 
+                    (((t.getVertex(1) - t.getVertex(0)) * beta) + ((t.getVertex(2) - t.getVertex(0)) * gamma));
+			double dist = Vector::lengthSq(point, rp);
 			if(dist < dmin || dist > dmax) {
 				continue;
 			}
 			if(in == 0) {
 				Vector normal;
-				if(t.ntri) {
+				if(t.isNormal()) {
 					//Linearly Interpolate
 					//multiply each vertex norm by the corresponding barycentric coordinant
 					//add and renormalize
 					double alpha = 1.0 - (beta + gamma);
-					double ang1 = dot(t.normals[0], rd);
-					double ang2 = dot(t.normals[1], rd);
-					double ang3 = dot(t.normals[2], rd);
-					Vector norm1 = (ang1 > 0) ? t.normals[3] : t.normals[0];
-					Vector norm2 = (ang2 > 0) ? t.normals[4] : t.normals[1];
-					Vector norm3 = (ang3 > 0) ? t.normals[5] : t.normals[2];
-					normal = norm(add(multiply(norm1, beta), add(multiply(norm2, gamma), multiply(norm3, alpha))));
+					double ang1 = Vector::dot(t.getNormal(0), rd);
+					double ang2 = Vector::dot(t.getNormal(1), rd);
+					double ang3 = Vector::dot(t.getNormal(2), rd);
+					Vector norm1 = (ang1 > 0) ? t.getNormal(0)*-1.0f : t.getNormal(0);
+					Vector norm2 = (ang2 > 0) ? t.getNormal(1)*-1.0f : t.getNormal(1);
+					Vector norm3 = (ang3 > 0) ? t.getNormal(2)*-1.0f : t.getNormal(2);
+					//normal = norm(add(multiply(norm1, beta), add(multiply(norm2, gamma), multiply(norm3, alpha))));
+                    normal = ((norm1 * beta) + (norm2 * gamma) + (norm3 * alpha)).norm();
 				}
 				else {
-					double ang = dot(t.normals[0], rd);
+					double ang = Vector::dot(t.getNormal(0), rd);
 					if(ang > 0) {
-						normal = t.normals[3];
+						normal = t.getNormal(0) * -1.0f;
 					}
 					else {
-						normal = t.normals[0];
+						normal = t.getNormal(0);
 					}
 				}
-				in = new Intersect;
-				in->r = *trace;
-				in->dist = dist;
-				in->p = point;
-				in->m = t.mat;
-				in->normal = normal;
+				in = new Intersect(normal, trace, dist, point, t.getMaterial());
 			}
 			else if(dist < in->dist) {
 				Vector normal;
-				if(t.ntri) {
+				if(t.isNormal()) {
 					//Linearly Interpolate
 					double alpha = 1.0 - (beta + gamma);
-					double ang1 = dot(t.normals[0], rd);
-					double ang2 = dot(t.normals[1], rd);
-					double ang3 = dot(t.normals[2], rd);
-					Vector norm1 = (ang1 > 0) ? t.normals[3] : t.normals[0];
-					Vector norm2 = (ang2 > 0) ? t.normals[4] : t.normals[1];
-					Vector norm3 = (ang3 > 0) ? t.normals[5] : t.normals[2];
-					normal = norm(add(multiply(norm1, beta), add(multiply(norm2, gamma), multiply(norm3, alpha))));
+					double ang1 = Vector::dot(t.getNormal(0), rd);
+					double ang2 = Vector::dot(t.getNormal(1), rd);
+					double ang3 = Vector::dot(t.getNormal(2), rd);
+					Vector norm1 = (ang1 > 0) ? t.getNormal(0)*-1.0f : t.getNormal(0);
+					Vector norm2 = (ang2 > 0) ? t.getNormal(1)*-1.0f : t.getNormal(1);
+					Vector norm3 = (ang3 > 0) ? t.getNormal(2)*-1.0f : t.getNormal(2);
+					//normal = norm(add(multiply(norm1, beta), add(multiply(norm2, gamma), multiply(norm3, alpha))));
+                    normal = ((norm1 * beta) + (norm2 * gamma) + (norm3 * alpha)).norm();
 				}
 				else {
-					double ang = dot(t.normals[0], rd);
+					double ang = Vector::dot(t.getNormal(0), rd);
 					if(ang > 0) {
-						normal = t.normals[3];
+						normal = t.getNormal(0) * -1.0f;
 					}
 					else {
-						normal = t.normals[0];
+						normal = t.getNormal(0);
 					}
 				}
-				in->r = *trace;
+				in->r = trace;
 				in->dist = dist;
 				in->p = point;
-				in->m = t.mat;
+				in->m = t.getMaterial();
 				in->normal = normal;
 			}
 		}
@@ -452,7 +443,7 @@ Intersect* intersectTriangle(Ray* trace, std::vector<Triangle> triList, double d
     
     return in;
 }
-
+/*
 Intersect* intersectPlane(Ray* trace, std::vector<Plane> planeList, double dmin, double dmax) {
 	Intersect* in = 0;
 	int planenum = planeList.size();
@@ -497,13 +488,13 @@ Intersect* intersectPlane(Ray* trace, std::vector<Plane> planeList, double dmin,
 	}
 	return in;
 }
-
+*/
 //Returns a ray from the viewpoint to the pixel in position (x, y)
-Ray getRay(int x, int y, int w, int h, Vector p1, Vector p2, double pd, Camera* c, ProjType proj, bool sample) {
+Ray RayTrace::getRay(int x, int y, int w, int h, const Vector& p1, const Vector& p2, double pd, const Camera& c, ProjType proj, bool sample) const {
     Ray e;
-    Vector pos = c->position;
-    Vector right = norm(cross(c->direction, c->cameraUp));
-    Vector down = norm(multiply(c->cameraUp, -1.0));
+    Vector pos = c.getPosition();
+    Vector right = (Vector::cross(c.getDirection(), c.getUpDirection())).norm();
+    Vector down = (c.getUpDirection() * -1.0f).norm();
     double r1, r2;
     if(sample) {
 		r1 = (double)std::rand() / RAND_MAX;
@@ -515,50 +506,50 @@ Ray getRay(int x, int y, int w, int h, Vector p1, Vector p2, double pd, Camera* 
     if (proj == PERSP) {
         Vector dir;
         //Vector from p1 to p2
-        Vector ptop = sub(p2, p1);
+        Vector ptop = p2 - p1;
         //Project that vector onto the right vector to get upper right point
-        Vector ur = multiply(right, dot(ptop, right));
-        ur = multiply(ur, (double)x/w + (r1/w));
+        Vector ur = right * Vector::dot(ptop, right);
+        ur = ur * ((double)x/w + (r1/w));
         //Project ptop onto down vector to get bottom left point
-        Vector bl = multiply(down, dot(ptop, down));
-        bl = multiply(bl, (double)y/h + (r2/h));
+        Vector bl = down * Vector::dot(ptop, down);
+        bl = bl * ((double)y/h + (r2/h));
         //Add x percent of first projection and y percent of second projection
-        dir = add(ur, bl);
-        dir = add(dir, p1);
-        e = (Ray){pos, norm(dir)};
+        dir = ur + bl;
+        dir = dir + p1;
+        e = Ray(pos, dir.norm());
     }
     else {
         Vector p;
         //Vector from p1 to p2
-        Vector ptop = sub(p2, p1);
+        Vector ptop = p2 - p1;
         //Project that vector onto the right vector to get upper right point
-        Vector ur = multiply(right, dot(ptop, right));
-        ur = multiply(ur, (double)x/w + (r1/w));
+        Vector ur = right * Vector::dot(ptop, right);
+        ur = ur * ((double)x/w + (r1/w));
         //Project ptop onto down vector to get bottom left point
-        Vector bl = multiply(down, dot(ptop, down));
-        bl = multiply(bl, (double)y/h + (r2/h));
+        Vector bl = down * Vector::dot(ptop, down);
+        bl = bl * ((double)y/h + (r2/h));
         //Add x percent of first projection and y percent of second projection
-        p = add(ur, bl);
-        p = add(p, p1);
-        e = (Ray){p, c->direction};
+        p = ur + bl;
+        p = p + p1;
+        e = Ray(p, c.getDirection());
     }
     //printf("Dir1: (%f %f %f)\n", e.d.x, e.d.y, e.d.z);
     return e;
 }
 
 //Returns a pixel with the background color
-Vector getColor(Intersect* i, SceneData* scn, int depth, bool useBVH) {
-	std::vector<Light> d = scn->directional;
-	std::vector<Light> p = scn->point;
-	std::vector<Light> s = scn->spot;
-	Light a = scn->ambient;
-	int lnum[3] = {(signed)scn->directional.size(), (signed)scn->point.size(), (signed)scn->spot.size()};
+Vector RayTrace::getColor(const Intersect* i, const Scene& scn, int depth, bool useBVH) const {
+	std::vector<Light> d = scn.getDirLights();
+	std::vector<Light> p = scn.getPointLights();
+	std::vector<Light> s = scn.getSpotLights();
+	Light a = scn.getAmbLight();
+	int lnum[3] = {(signed)d.size(), (signed)p.size(), (signed)s.size()};
 	Material m = i->m;
-	Vector dif = m.diffuseColor;
-    Vector spec = m.specularColor;
+	Vector dif = m.getDiffuse();
+    Vector spec = m.getSpecular();
 	float rval, gval, bval;
 	//Get the base color(La)
-	Vector aColor = m.ambientColor;
+	Vector aColor = m.getAmbient();
 	rval = aColor.x;
 	gval = aColor.y;
 	bval = aColor.z;
@@ -566,16 +557,16 @@ Vector getColor(Intersect* i, SceneData* scn, int depth, bool useBVH) {
 	//Point that the ray intersected the sphere
 	//Vector point = add(r.p, multiply(r.d, i->t));
 	Vector point = i->p;
-	Vector direct = i->r.d;
+	Vector direct = i->r.getDirection();
 	//Normal norm(P-C)
 	Vector normal = i->normal;
 	//Multiply material ambient color by the light ambient color
-	rval *= a.color.x;
-	gval *= a.color.y;
-	bval *= a.color.z;
+	rval *= a.getColor().x;
+	gval *= a.getColor().y;
+	bval *= a.getColor().z;
 	//Loop through each lightsource
 	Ray shadow;
-	shadow.p = point;
+    shadow.setPosition(point);
 	Vector I;
 	Light L;
 	//Directional
@@ -584,23 +575,23 @@ Vector getColor(Intersect* i, SceneData* scn, int depth, bool useBVH) {
 		//Lambert
 		//If the ray from the point in the direction of the light intersects
 		//anything, skip the rest
-		I = multiply(L.direction, -1.0);
-		I = norm(I);
-		shadow.d = I;
+		I = L.getDirection() * -1.0;
+		I = I.norm();
+		shadow.setDirection(I);
 		//Use really small number in intersect so that it doesn't intersect itself
-		if(intersect(&shadow, scn, .001, std::numeric_limits<double>::infinity(), useBVH)) {
+		if(intersect(shadow, scn, .001, std::numeric_limits<double>::infinity(), useBVH)) {
 			continue;
 		}
-		double dotni = dot(normal, I);
+		double dotni = Vector::dot(normal, I);
 		double cosAlpha = (dotni > 0) ? dotni : 0;
-		Vector illum = L.color;
+		Vector illum = L.getColor();
 		rval += dif.x * illum.x * cosAlpha;
 		gval += dif.y * illum.y * cosAlpha;
 		bval += dif.z * illum.z * cosAlpha;
 		//Phong
-		Vector ref = sub(multiply(normal, 2.0*dotni), I);
-		Vector V = multiply(direct, -1);
-		double pspec = pow(dot(norm(V), norm(ref)), m.cosPow);
+		Vector ref = (normal * (2.0*dotni)) - I;
+		Vector V = direct * -1.0f;
+		double pspec = pow(Vector::dot(V.norm(), ref.norm()), m.getCosPower());
 		rval += spec.x * pspec * illum.x;
 		gval += spec.y * pspec * illum.y;
 		bval += spec.z * pspec * illum.z;
@@ -608,24 +599,24 @@ Vector getColor(Intersect* i, SceneData* scn, int depth, bool useBVH) {
 	//Point
 	for(int k = 0; k < lnum[1]; k++) {
 		L = p[k];
-		I = sub(L.position, point);
+		I = L.getPosition() - point;
 		//Lambert
-		double dist = lengthsq(I);
-		I = norm(I);
-		shadow.d = I;
-		if(intersect(&shadow, scn, .001, dist, useBVH)) {
+		double dist = I.magnitudeSq();
+		I = I.norm();
+		shadow.setDirection(I);
+		if(intersect(shadow, scn, .001, dist, useBVH)) {
 			continue;
 		}
-		Vector illum = multiply(L.color, 1.0/dist);
-		double dotni = dot(normal, I);
+		Vector illum = L.getColor() * (1.0/dist);
+		double dotni = Vector::dot(normal, I);
 		double cosAlpha = (dotni > 0) ? dotni : 0;
 		rval += dif.x * illum.x * cosAlpha;
 		gval += dif.y * illum.y * cosAlpha;
 		bval += dif.z * illum.z * cosAlpha;
 		//Phong
-		Vector ref = sub(multiply(normal, 2.0*dotni), I);
-		Vector V = multiply(direct, -1.0);
-		double pspec = pow(dot(norm(V), norm(ref)), m.cosPow);
+		Vector ref = (normal * (2.0*dotni)) - I;
+		Vector V = direct * -1.0;
+		double pspec = pow(Vector::dot(V.norm(), ref.norm()), m.getCosPower());
 		rval += spec.x * pspec * illum.x;
 		gval += spec.y * pspec * illum.y;
 		bval += spec.z * pspec * illum.z;
@@ -633,70 +624,71 @@ Vector getColor(Intersect* i, SceneData* scn, int depth, bool useBVH) {
 	//Spot
 	for(int l = 0; l < lnum[2]; l++) {
 		L = s[l];
-		I = sub(L.position, point);
+		I = L.getPosition() - point;
 		//Lambert
-		double dist = lengthsq(I);
-		I = norm(I);
-		shadow.d = I;
-		if(intersect(&shadow, scn, .001, dist, useBVH)) {
+		double dist = I.magnitudeSq();
+		I = I.norm();
+		shadow.setDirection(I);
+		if(intersect(shadow, scn, .001, dist, useBVH)) {
 			continue;
 		}
 		Vector illum;
-		double dotni = dot(normal, I);
+		double dotni = Vector::dot(normal, I);
 		double cosAlpha = (dotni > 0) ? dotni : 0;
 		double alpha = acos(cosAlpha);
 		//Acts like a point light
-		if(alpha < L.angle1) {
-			illum = multiply(L.color, 1.0/dist);
+		if(alpha < L.getSpotAngle()) {
+			illum = L.getColor() * (1.0/dist);
 		}
 		//Greater than angle2, light contributes nothing
-		else if(alpha > L.angle2) {
-			illum = (Vector){0, 0, 0};
+		else if(alpha > L.getMaxAngle()) {
+			illum = Vector();
 		}
 		//Linearly interpolate
 		else {
 			//Get amount alpha is between the 2 angles (angle1=1, angle2=0)
 			// 1 - (alpha-angle1 / angle2-angle1)
-			double amt = 1 - ((alpha - L.angle1) / (L.angle2 - L.angle1));
+			double amt = 1 - ((alpha - L.getSpotAngle()) / (L.getMaxAngle() - L.getSpotAngle()));
 			//Multiply light by amount
-			illum = multiply(L.color, (1.0/dist)*amt);
+			illum = L.getColor() * ((1.0/dist)*amt);
 		}
 		rval += dif.x * illum.x * cosAlpha;
 		gval += dif.y * illum.y * cosAlpha;
 		bval += dif.z * illum.z * cosAlpha;
 		//Phong
-		Vector ref = sub(multiply(normal, 2.0*dotni), I);
-		Vector V = multiply(direct, -1.0);
-		double pspec = pow(dot(norm(V), norm(ref)), m.cosPow);
+		Vector ref = (normal * (2.0*dotni)) - I;
+		Vector V = direct * -1.0f;
+		double pspec = pow(Vector::dot(V.norm(), ref.norm()), m.getCosPower());
 		rval += spec.x * pspec * illum.x;
 		gval += spec.y * pspec * illum.y;
 		bval += spec.z * pspec * illum.z;
 	}
     Vector refColor;
     Vector rdir = direct;
-	Vector irdir = multiply(rdir, -1);
+	Vector irdir = rdir * -1.0f;
     ///Reflect Ray
     if(spec.x != 0 && spec.y != 0 && spec.z != 0) {
 		Ray reflection;
-		reflection.p = point;
-		reflection.d = sub(multiply(normal, 2.0*dot(normal, irdir)), irdir);
-		refColor = evaluateRayTree(scn, &reflection, depth+1, useBVH);
+		reflection.setPosition(point);
+		reflection.setDirection((normal * (2.0f*Vector::dot(normal, irdir))) - irdir);
+        // = sub(multiply(normal, 2.0*dot(normal, irdir)), irdir);
+		refColor = evaluateRayTree(scn, reflection, depth+1, useBVH);
 		rval += spec.x * refColor.x;
 		gval += spec.y * refColor.y;
 		bval += spec.z * refColor.z;
 	}
     ///Refract
-    Vector trans = m.transmissiveColor;
+    Vector trans = m.getTransmissive();
     if(trans.x != 0 && trans.y != 0 && trans.z != 0) {
 		Ray refraction;
-		refraction.p = point;
+		refraction.setPosition(point);
 		double ior;
-		double dni = dot(irdir, normal);
+		double dni = Vector::dot(irdir, normal);
 		if(dni <= 0) { //going into object
-			ior = m.ior;
+			ior = m.getIndexRefract();
 		}
 		else {
-			ior = 1.0 / m.ior;
+			ior = 1.0 / m.getIndexRefract();
 			//normal = multiply(normal, -1);
 		}
 		// (nr*dot(N,I)-sqrt(1-nr^2(1-dot(N,I)^2)))*N - nr*I
@@ -708,13 +700,15 @@ Vector getColor(Intersect* i, SceneData* scn, int depth, bool useBVH) {
 			//Vector refdir = sub(multiply(normal, ior*dni-sqrt(tir)), multiply(irdir, ior));
 			Vector refdir;
 			if(dni >= 0) {
-				refdir = sub(multiply(normal, ior*dni-sqrt(tir)), multiply(irdir, ior));
+				//refdir = sub(multiply(normal, ior*dni-sqrt(tir)), multiply(irdir, ior));
+                refdir = (normal * (ior*dni-sqrt(tir))) - (irdir * ior);
 			}
 			else {
-				refdir = sub(multiply(normal, ior*dni+sqrt(tir)), multiply(irdir, ior));
+				//refdir = sub(multiply(normal, ior*dni+sqrt(tir)), multiply(irdir, ior));
+                refdir = (normal * (ior*dni+sqrt(tir))) - (irdir * ior);
 			}
-			refraction.d = norm(refdir);
-			refColor = evaluateRayTree(scn, &refraction, depth+1, useBVH);
+			refraction.setDirection(refdir.norm());
+			refColor = evaluateRayTree(scn, refraction, depth+1, useBVH);
 			rval += trans.x * refColor.x;
 			gval += trans.y * refColor.y;
 			bval += trans.z * refColor.z;
@@ -724,31 +718,26 @@ Vector getColor(Intersect* i, SceneData* scn, int depth, bool useBVH) {
     return (Vector){rval, gval, bval};
 }
 
-//Returns the distance to the viewing plane based on the angle from the
-//viewing point and the height of the plane
-double getPlaneDist(double angle, int h) {
-    return h / (2.0 * tan(angle));
-}
-
 //Gets the extreme points of top left and bottom right
-void getExtremePoints(Camera* c, double d, double w, double h, Vector& p1, Vector& p2) {
+void RayTrace::getExtremePoints(const Camera& c, double d, double w, double h, Vector& p1, Vector& p2) const {
 	//p1 is the top left, p2 is the bottom right
-	Vector p0 = c->position;
-	Vector up = c->cameraUp;
-	Vector right = cross(c->direction, up);
+	Vector p0 = c.getPosition();
+	Vector up = c.getUpDirection();
+	Vector right = Vector::cross(c.getDirection(), up);
 	//Vector from the viewpoint to the center
-	p0 = add(p0, multiply(c->direction, d));
+	p0 = p0 + (c.getDirection() * d);
 	//Add on the offset for the 2 extreme points (-x, -y) and (+x, +y)
-	p1 = add(p0, multiply(right, w/2.0)); //< Add x part
-	p2 = sub(p0, multiply(right, w/2.0));
-	p1 = add(p1, multiply(up, h/2.0)); //< Add y part
-	p2 = sub(p2, multiply(up, h/2.0));
+	p1 = p0 + (right * (w/2.0)); //< Add x part
+	p2 = p0 - (right * (w/2.0));
+	p1 = p1 + (up * (h/2.0)); //< Add y part
+	p2 = p2 - (up * (h/2.0));
 }
 
 /**
  * Acceleration Structure (BVH)
  */
-void makeBVH(SceneData* scn, Box* box, int depth) {
+/*
+void BVH::make(Scene& scn, AABB* box, int depth) {
 	//If depth is 0, start by making first box
 		//Initialize values so that box starts with every object
 	if(depth == 0) {
@@ -1026,14 +1015,13 @@ void findBoundingVerts(SceneData* scn, Vector& bl, Vector& tr) {
 	}
 	bl = min;
 	tr = max;
-	/*
+    
 	Rectangle r;
 	std::vector<Rectangle> rec = scn->rectangles;
 	num = rec.size();
 	for(int i = 0; i < num; i++) {
 		r = rec[i];
 	}
-	*/
 }
 
 //std::array<Vector, 8> vrts
@@ -1287,75 +1275,23 @@ bool isPlaneInBox(Box* b, Plane* pln) {
     }
     return false;
 }
-
+*/
 /**
 * Vector Operations
 */
 
-//Performs a dot product on the 2 vectors
-double dot(Vector u, Vector v) {
-    return (u.x*v.x) + (u.y*v.y) + (u.z*v.z);
-}
-
-//Performs the cross product on the 2 vectors
-Vector cross(Vector u, Vector v) {
-	return (Vector){u.y*v.z-u.z*v.y, u.z*v.x-u.x*v.z, u.x*v.y-u.y*v.x};
-}
-
-//Multiply a vector by a constant
-Vector multiply(Vector u, float c) {
-    return (Vector){u.x*c, u.y*c, u.z*c};
-}
-
-Vector div(Vector u, float c) {
-	return (Vector){u.x/c, u.y/c, u.z/c};
-}
-
-//Adds the 2 vectors
-Vector add(Vector u, Vector v) {
-    return (Vector){u.x+v.x, u.y+v.y, u.z+v.z};
-}
-
-Vector add(Vector u, float c) {
-	return (Vector){u.x+c, u.y+c, u.z+c};
-}
-
-//Subtracts vec2 from vec1
-Vector sub(Vector u, Vector v) {
-    return (Vector){u.x-v.x, u.y-v.y, u.z-v.z};
-}
-
-Vector sub(Vector u, float c) {
-	return (Vector){u.x-c, u.y-c, u.z-c};
-}
-
-//Returns the length of the 3D vector
-double length(Vector u) {
-    return sqrt((u.x*u.x)+(u.y*u.y)+(u.z*u.z));
-}
-
-double lengthsq(Vector u) {
-	return (u.x*u.x)+(u.y*u.y)+(u.z*u.z);
-}
-
-//Normalized the vector by dividing it by the magnitude
-Vector norm(Vector u) {
-    float mag = (float)length(u);
-    return (Vector){u.x/mag, u.y/mag, u.z/mag};
-}
-
-Vector ave(Vector v[], int num) {
+Vector RayTrace::ave(Vector v[], int num) {
 	if(num == 1) {
 		return v[0];
 	}
 	Vector u = v[0];
 	for(int i = 1; i < num; i++) {
-		u = add(u, v[i]);
+		u = u + v[i];
 	}
-	u = div(u, num);
+	u = u / num;
 	return u;
 }
-
+/*
 void printBVH(Box* b, int depth) {
 	for(int i = 0; i < depth; i++) {
 		printf("--");
@@ -1418,3 +1354,4 @@ void printBVH(Box* b, int depth) {
 		printBVH(b->sub2, depth+1);
 	}
 }
+*/

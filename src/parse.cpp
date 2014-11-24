@@ -211,11 +211,14 @@ int Scene::parseScene(char* file) {
             setSampleRate(rate);
         }
     }
+    clearPools();
     scn.close();
     return 1;
 }
 
-float Scene::getPlaneDist() {
+//Returns the distance to the viewing plane based on the angle from the
+//viewing point and the height of the plane
+float Scene::getPlaneDist() const {
     return img.getHeight() / (2.0 * tan(camera.getHalfFOV()));
 }
 
@@ -324,6 +327,17 @@ Vector& Vector::operator-=(const float& c) {
     this->x -= c;
     this->y -= c;
     this->z -= c;
+    return *this;
+}
+
+Vector Vector::operator/(const float& c) const {
+    return Vector(x/c, y/c, z/c);
+}
+
+Vector& Vector::operator/=(const float& c) {
+    this->x /= c;
+    this->y /= c;
+    this->z /= c;
     return *this;
 }
 
@@ -482,10 +496,28 @@ rt::Image::Image(const std::string& name, int imageWidth, int imageHeight) {
 }
 
 /********************
- * Scene
+ * AABB
  ********************/
+AABB::AABB() {
+    left = right = parent = 0;
+}
+
+AABB::AABB(AABB* p) {
+    left = right = 0;
+    parent = p;
+}
+
+AABB::AABB(std::vector<Sphere> sphs, std::vector<Triangle> tris) {
+    spheres = sphs;
+    triangles = tris;
+    left = right = parent = 0;
+}
 
 
+
+/********************
+ * Printing
+ ********************/
 void printScene(Scene *scn) {
     printf("\nCamera:\n");
     printCamera(scn->getCamera());

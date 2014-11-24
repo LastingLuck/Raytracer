@@ -7,6 +7,8 @@
 #include <string>
 #include <vector>
 #include <array>
+//#include "raytrace.h"
+
 
 enum ProjType {
     ORTHO,
@@ -58,6 +60,9 @@ class Vector {
         Vector operator-(const float& c) const;
         Vector& operator-=(const Vector& u);
         Vector& operator-=(const float& c);
+        //Divides each entry in the vector by a constant
+        Vector operator/(const float& c) const;
+        Vector& operator/=(const float& c);
 };
 
 class Material {
@@ -209,6 +214,30 @@ class Image {
 };
 } //end rt namespace
 
+class AABB {
+    public:
+        AABB();
+        AABB(AABB* p);
+        AABB(std::vector<Sphere> sphs, std::vector<Triangle> tris);
+        
+        void addSphere(const Sphere& sph) { spheres.push_back(sph); }
+        void addTriangle(const Triangle& tri) { triangles.push_back(tri); }
+        
+        std::vector<Sphere> getSpheres() { return spheres; }
+        std::vector<Triangle> getTriangles() { return triangles; }
+        bool isLeaf() { return !left && !right; }
+        AABB* getLeftChild() { return left; }
+        AABB* getRightChild() { return right; }
+        AABB* getParent() { return parent; }
+    private:
+        std::vector<Sphere> spheres;
+        std::vector<Triangle> triangles;
+        //May not actually be left and right in space.
+        AABB* left;
+        AABB* right;
+        AABB* parent;
+};
+
 class Scene {
     public:
         Scene();
@@ -217,7 +246,7 @@ class Scene {
         void init(); //< (re)initialize everything to default values
         //Parses the scene text file and fills out a SceneData struct
         int parseScene(char* file);
-        float getPlaneDist();
+        float getPlaneDist() const;
         void clearPools();
         
         void setCamera(const Camera& cam) { camera = cam; }
@@ -235,6 +264,7 @@ class Scene {
         void setAmbientLight(const Light& ambLight) { ambient = ambLight; }
         void setBVHDepth(int depth) { bvhDepth = depth; }
         void setBVHThreshold(int threshold) { bvhThresh = threshold; }
+        void setBVH(AABB* bvhRoot) { bvh = bvhRoot; }
         void setSampleRate(int rate) { sampleNum = rate; }
         
         Camera getCamera() const { return camera; }
@@ -254,6 +284,7 @@ class Scene {
         int getBVHDepth() const { return bvhDepth; }
         int getBVHThreshold() const { return bvhThresh; }
         bool useBvh() const { return useBVH; }
+        AABB* getBVH() const { return bvh; }
         int getSampleRate() const { return sampleNum; }
         
     private:
@@ -283,6 +314,7 @@ class Scene {
         int bvhDepth;
         int bvhThresh;
         bool useBVH;
+        AABB* bvh;
         //Super Sample
         int sampleNum;
 };
