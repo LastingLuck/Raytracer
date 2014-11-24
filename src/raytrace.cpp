@@ -53,6 +53,11 @@
 	if(min>rad || max<-rad) return false;
 
 
+Ray::Ray() {
+    p(); //< init to (0, 0, 0)
+    d();
+}
+
 //Performs a raytrace on the Scene scn with projection type proj
 Image* RayTrace(SceneData* scn) {
 	std::srand(std::time(0));

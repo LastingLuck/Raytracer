@@ -5,6 +5,9 @@
 
 #define MAX_LINE 100
 
+/********************
+ * Scene
+ ********************/
 Scene::Scene() {
     init();
 }
@@ -211,6 +214,277 @@ int Scene::parseScene(char* file) {
     scn.close();
     return 1;
 }
+
+float Scene::getPlaneDist() {
+    return img.getHeight() / (2.0 * tan(camera.getHalfFOV()));
+}
+
+void Scene::clearPools() {
+    vertexPool.clear();
+    normalPool.clear();
+}
+
+/********************
+ * Vector
+ ********************/
+Vector::Vector() {
+    x = y = z = 0;
+}
+
+Vector::Vector(float val) {
+    x = y = z = val;
+}
+
+Vector::Vector(float xval, float yval, float zval) {
+    x = xval;
+    y = yval;
+    z = zval;
+}
+
+float Vector::dot(const Vector& u, const Vector& v) {
+    return (u.x * v.x) + (u.y * v.y) + (u.z * v.z);
+}
+
+Vector Vector::cross(const Vector& u, const Vector& v) {
+    return Vector(u.y*v.z-u.z*v.y, u.z*v.x-u.x*v.z, u.x*v.y-u.y*v.x);
+}
+
+float Vector::length(const Vector& u, const Vector& v) {
+    Vector dist = u - v;
+    return sqrt((dist.x * dist.x) + (dist.y * dist.y) + (dist.z * dist.z));
+}
+
+float Vector::lengthSq(const Vector& u, const Vector& v) {
+    const Vector dist = u - v;
+    return (dist.x * dist.x) + (dist.y * dist.y) + (dist.z * dist.z);
+}
+
+float Vector::magnitude() {
+    return sqrt((x * x) + (y * y) + (z * z));
+}
+
+float Vector::magnitudeSq() {
+    return (x * x) + (y * y) + (z * z);
+}
+
+Vector Vector::norm() {
+    float mag = magnitude();
+    return Vector(x/mag, y/mag, z/mag);
+}
+
+Vector Vector::operator*(const float& c) const {
+    return Vector(x*c, y*c, z*c);
+}
+
+Vector& Vector::operator*=(const Vector& u) {
+    this->x *= u.x;
+    this->y *= u.y;
+    this->z *= u.z;
+    return *this;
+}
+
+Vector Vector::operator+(const Vector& u) const {
+    return Vector(x+u.x, y+u.y, z+u.z);
+}
+
+Vector Vector::operator+(const float& c) const {
+    return Vector(x+c, y+c, z+c);
+}
+
+Vector& Vector::operator+=(const Vector& u) {
+    this->x += u.x;
+    this->y += u.y;
+    this->z += u.z;
+    return *this;
+}
+
+Vector& Vector::operator+=(const float& c) {
+    this->x += c;
+    this->y += c;
+    this->z += c;
+    return *this;
+}
+
+Vector Vector::operator-(const Vector& u) const {
+    return Vector(x-u.x, y-u.y, z-u.z);
+}
+
+Vector Vector::operator-(const float& c) const {
+    return Vector(x-c, y-c, z-c);
+}
+
+Vector& Vector::operator-=(const Vector& u) {
+    this->x -= u.x;
+    this->y -= u.y;
+    this->z -= u.z;
+    return *this;
+}
+
+Vector& Vector::operator-=(const float& c) {
+    this->x -= c;
+    this->y -= c;
+    this->z -= c;
+    return *this;
+}
+
+/********************
+ * Material
+ ********************/
+Material::Material() {
+    ambientColor = Vector();
+    diffuseColor = Vector(1);
+    specularColor = Vector();
+    cosPow = 5;
+    transmissiveColor = Vector();
+    ior = 1;
+}
+ 
+Material::Material(const Vector& ambient, const Vector& diffuse, const Vector& specular) {
+    ambientColor = ambient;
+    diffuseColor = diffuse;
+    specularColor = specular;
+    cosPow = 5;
+    transmissiveColor = Vector();
+    ior = 1;
+}
+
+Material::Material(const Vector& amb, const Vector& dif, const Vector& spec, const Vector& trans, float pow, float iref) {
+    ambientColor = amb;
+    diffuseColor = dif;
+    specularColor = spec;
+    cosPow = pow;
+    transmissiveColor = trans;
+    ior = iref;
+}
+
+/********************
+ * Sphere
+ ********************/
+Sphere::Sphere() {
+    position = Vector();
+    radius = 1.0f;
+    mat = Material();
+}
+
+Sphere::Sphere(const Vector& pos, float rad, const Material& material) {
+    position = pos;
+    radius = rad;
+    mat = material;
+}
+
+/********************
+ * Triangle
+ ********************/
+Triangle::Triangle() {
+    vertices[0] = vertices[1] = vertices[2] = Vector();
+    normals[0] = normals[1] = normals[2] = Vector(0, 1, 0);
+    mat = Material();
+    ntri = false;
+}
+
+Triangle::Triangle(const Vector& v1, const Vector& v2, const Vector& v3) {
+    vertices[0] = v1;
+    vertices[1] = v2;
+    vertices[2] = v3;
+    normals[0] = normals[1] = normals[2] = Vector::cross(v1, v2);
+    mat = Material();
+    ntri = false;
+}
+
+Triangle::Triangle(const Vector& v1, const Vector& v2, const Vector& v3, const Vector& n1, const Vector& n2, const Vector& n3) {
+    vertices[0] = v1;
+    vertices[1] = v2;
+    vertices[2] = v3;
+    normals[0] = n1;
+    normals[1] = n2;
+    normals[2] = n3;
+    mat = Material();
+    ntri = true;
+}
+
+/********************
+ * Light
+ ********************/
+Light::Light() {
+    color = Vector();
+    position = Vector();
+    direction = Vector(0, 1, 0);
+    angle1 = M_PI_4;
+    angle2 = M_PI_2;
+}
+
+Light::Light(const Vector& lightColor) {
+    color = lightColor;
+    position = Vector();
+    direction = Vector(0, 1, 0);
+    angle1 = M_PI_4;
+    angle2 = M_PI_2;
+}
+
+Light::Light(const Vector& lightColor, const Vector& lightPosDir, enum LightType type) {
+    color = lightColor;
+    if(type == POINT) {
+        position = lightPosDir;
+        direction = Vector(0, 1, 0);
+    }
+    else {
+        position = Vector();
+        direction = lightPosDir;
+    }
+    angle1 = M_PI_4;
+    angle2 = M_PI_2;
+}
+
+Light::Light(const Vector& lightColor, const Vector& lightPos, const Vector& lightDir, float spotAngle, float maxAngle) {
+    color = lightColor;
+    position = lightPos;
+    direction = lightDir;
+    angle1 = spotAngle;
+    angle2 = maxAngle;
+}
+
+/********************
+ * Camera
+ ********************/
+Camera::Camera() {
+    position = Vector();
+    direction = Vector(1, 0, 0);
+    up = Vector(0, 1, 0);
+    halfAngle = 45.0f;
+}
+
+Camera::Camera(const Vector& pos, const Vector& dir, const Vector& upDir, float fov) {
+    position = pos;
+    direction = dir;
+    up = upDir;
+    halfAngle = fov;
+}
+
+/********************
+ * Image
+ ********************/
+rt::Image::Image() {
+    filename = "raytraced.bmp";
+    width =  640;
+    height = 480;
+}
+
+rt::Image::Image(const std::string& name) {
+    filename = name;
+    width = 640;
+    height = 480;
+}
+
+rt::Image::Image(const std::string& name, int imageWidth, int imageHeight) {
+    filename = name;
+    width = imageWidth;
+    height = imageHeight;
+}
+
+/********************
+ * Scene
+ ********************/
+
 
 void printScene(Scene *scn) {
     printf("\nCamera:\n");

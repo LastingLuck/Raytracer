@@ -46,16 +46,16 @@ class Vector {
         Vector norm();
         
         //Multiply vector
-        Vector operator*(const float& c);
+        Vector operator*(const float& c) const;
         Vector& operator*=(const Vector& u);
         //Adds 2 vectors
-        Vector operator+(const Vector& u);
-        Vector operator+(const float& c);
+        Vector operator+(const Vector& u) const;
+        Vector operator+(const float& c) const;
         Vector& operator+=(const Vector& u);
         Vector& operator+=(const float& c);
         //Subtracts 2 vectors
-        Vector operator-(const Vector& u);
-        Vector operator-(const float& c);
+        Vector operator-(const Vector& u) const;
+        Vector operator-(const float& c) const;
         Vector& operator-=(const Vector& u);
         Vector& operator-=(const float& c);
 };
@@ -63,8 +63,8 @@ class Vector {
 class Material {
     public:
         Material();
-        Material(Vector ambient, Vector diffuse, Vector specular);
-        Material(Vector amb, Vector dif, Vector spec, Vector trans, float pow, float iref);
+        Material(const Vector& ambient, const Vector& diffuse, const Vector& specular);
+        Material(const Vector& amb, const Vector& dif, const Vector& spec, const Vector& trans, float pow, float iref);
         
         void setAmbient(const Vector& amb) { ambientColor = amb; }
         void setDiffuse(const Vector& dif) { diffuseColor = dif; }
@@ -92,7 +92,7 @@ class Material {
 class Sphere {
     public:
         Sphere();
-        Sphere(Vector pos, float rad, Material material);
+        Sphere(const Vector& pos, float rad, const Material& material);
         
         void setPosition(const Vector& pos) { position = pos; }
         void setRadius(const float& rad) { radius = rad; }
@@ -110,8 +110,8 @@ class Sphere {
 class Triangle {
     public:
         Triangle();
-        Triangle(Vector v1, Vector v2, Vector v3);
-        Triangle(Vector v1, Vector v2, Vector v3, Vector n1, Vector n2, Vector n3);
+        Triangle(const Vector& v1, const Vector& v2, const Vector& v3);
+        Triangle(const Vector& v1, const Vector& v2, const Vector& v3, const Vector& n1, const Vector& n2, const Vector& n3);
         
         void setMaterial(const Material& material) { mat = material; }
         void setVertex(const Vector& vert, int index) { vertices[clamp(index, 0, 2)] = vert; }

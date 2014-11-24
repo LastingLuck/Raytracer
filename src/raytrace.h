@@ -94,7 +94,7 @@ class BVH {
     public:
         void print();
         void make(const Scene& scn, int depth);
-        Intersect* intersect(const Ray& trace, double dmin, double dmax);
+        AABB* intersect(const Ray& trace, double dmin, double dmax);
         
     private:
         AABB* root;
