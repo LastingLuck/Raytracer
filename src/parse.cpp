@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <stdexcept>
 
 #define MAX_LINE 100
 
@@ -41,6 +42,7 @@ void Scene::init() {
 }
 
 int Scene::parseScene(char* file) {
+    char trash[256];
     std::ifstream scn;
     scn.open(file);
     if(scn.fail()) {
@@ -51,6 +53,7 @@ int Scene::parseScene(char* file) {
     std::string str;
     while(scn >> str) {
         if(str == "" || str[0] == '#') {
+            scn.getline(trash, 256);
             continue;
         }
         else if(str == "camera") {
@@ -73,8 +76,11 @@ int Scene::parseScene(char* file) {
             img.setFileName(n);
         }
         else if(str == "sphere") {
+            //std::string tmp;
+            //scn >> tmp;
             float x, y, z, r;
             scn >> x >> y >> z >> r;
+            //printf("Sphere at (%s)\n", tmp.c_str());
             addSphere(Sphere(Vector(x, y, z), r, curMat));
         }
         else if(str == "background") {
@@ -400,7 +406,7 @@ Triangle::Triangle(const Vector& v1, const Vector& v2, const Vector& v3) {
     vertices[0] = v1;
     vertices[1] = v2;
     vertices[2] = v3;
-    normals[0] = normals[1] = normals[2] = Vector::cross(v1, v2);
+    normals[0] = normals[1] = normals[2] = Vector::cross(v1, v2).norm();
     mat = Material();
     ntri = false;
 }
@@ -414,6 +420,13 @@ Triangle::Triangle(const Vector& v1, const Vector& v2, const Vector& v3, const V
     normals[2] = n3;
     mat = Material();
     ntri = true;
+}
+
+Vector& Triangle::operator[](const int index) {
+    if(index < 0 || index > 2) {
+        throw std::out_of_range("Triangle index out of range");
+    }
+    return vertices[index];
 }
 
 /********************

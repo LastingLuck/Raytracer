@@ -36,13 +36,14 @@ int main( int argc, char* argv[] ){
     }
     #ifdef DEBUG
     printf("Printing\n");
-    printScene(&data);
+    printScene(data);
     #endif
     
     //Ray trace
-    img = RayTrace(&data);
+    RayTrace t = RayTrace();
+    img = t.rayTrace(*data);
     //Write image
-    std::string out = data.file.filename.substr(0, data.file.filename.find(".bmp")+4);
+    std::string out = data->getImage().getFileName().substr(0, data->getImage().getFileName().find(".bmp")+4);
     int len = out.length();
     char* output = new char[len+1];
     strncpy(output, out.c_str(), len);

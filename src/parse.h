@@ -39,6 +39,12 @@ class Vector {
         static float lengthSq(const Vector& u, const Vector& v);
         static Vector zero() { return Vector(); }
         static Vector one() { return Vector(1); }
+        static Vector up() { return Vector(0, 1, 0); }
+        static Vector down() { return Vector(0, -1, 0); }
+        static Vector left() { return Vector(-1, 0, 0); }
+        static Vector right() { return Vector(1, 0, 0); }
+        static Vector forward() { return Vector(0, 0, 1); }
+        static Vector backward() { return Vector(0, 0, -1); }
         
         //Returns the magnitude of the vector
         float magnitude();
@@ -132,6 +138,7 @@ class Triangle {
         std::vector<Vector> getVertices() const { return std::vector<Vector>(vertices, vertices+3); }
         std::vector<Vector> getNormals() const { return std::vector<Vector>(normals, normals+3); }
         bool isNormal() { return ntri; } //< Returns wether the triangle has seperate normals for each point
+        Vector& operator[](const int index);
     private:
         int clamp(int num, int min, int max) const { return (num < min) ? min : (num > max) ? max : num; }
         
