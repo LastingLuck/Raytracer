@@ -17,7 +17,7 @@ background .25 0 0
 
 point_light 100 100 100 -2 2 0
 directional_light 0 2 0 0 0 1
-spot_light 0 0 200 3 3 0 0 0 1 5 20
+#spot_light 0 0 200 3 3 0 0 0 1 5 20
 
 material 0 0 0 1 0 1 .2 .2 .2 100 0 0 0 1
 

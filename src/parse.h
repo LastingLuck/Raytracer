@@ -122,7 +122,9 @@ class Triangle {
     public:
         Triangle();
         Triangle(const Vector& v1, const Vector& v2, const Vector& v3);
+        Triangle(const Vector& v1, const Vector& v2, const Vector& v3, const Material& m);
         Triangle(const Vector& v1, const Vector& v2, const Vector& v3, const Vector& n1, const Vector& n2, const Vector& n3);
+        Triangle(const Vector& v1, const Vector& v2, const Vector& v3, const Vector& n1, const Vector& n2, const Vector& n3, const Material& m);
         
         void setMaterial(const Material& material) { mat = material; }
         void setVertex(const Vector& vert, int index) { vertices[clamp(index, 0, 2)] = vert; }

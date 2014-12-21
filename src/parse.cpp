@@ -5,6 +5,7 @@
 #include <stdexcept>
 
 #define MAX_LINE 100
+#define DEGTORAD 0.01745329251
 
 /********************
  * Scene
@@ -20,7 +21,7 @@ Scene::Scene(enum ProjType view) {
 
 void Scene::init() {
     //Camera
-    camera = Camera((Vector){0, 0, 0}, (Vector){0, 0, 1}, (Vector){0, 1, 0}, 45.0*(M_PI / 180.0));
+    camera = Camera((Vector){0, 0, 0}, (Vector){0, 0, 1}, (Vector){0, 1, 0}, 45.0*DEGTORAD);
     //Image
     img = rt::Image("raytraced.bmp", 640, 480);
     //Light
@@ -62,7 +63,7 @@ int Scene::parseScene(char* file) {
             camera.setPosition(Vector(x, y, z));
             camera.setDirection(Vector(dx, dy, dz));
             camera.setUpDirection(Vector(ux, uy, uz));
-            camera.setHalfFOV(ha);
+            camera.setHalfFOV(ha*DEGTORAD);
         }
         else if(str == "film_resolution") {
             int w, h;
@@ -166,7 +167,7 @@ int Scene::parseScene(char* file) {
                 printf("Error: Specified vertex (%d) in triangle (%d) does not exist\n", v3, (int)getTriangles().size());
                 return -1;
             }
-            addTriangle(Triangle(vl[v1], vl[v2], vl[v3]));
+            addTriangle(Triangle(vl[v1], vl[v2], vl[v3], curMat));
         }
         else if(str == "normal_triangle") {
             int v1, v2, v3, n1, n2, n3;
@@ -199,7 +200,7 @@ int Scene::parseScene(char* file) {
                 printf("Error: Specified normal (%d) in triangle (%d) does not exist\n", n3, (int)getTriangles().size());
                 return -1;
             }
-            addTriangle(Triangle(vl[v1], vl[v2], vl[v3], nl[n1], nl[n2], nl[n3]));
+            addTriangle(Triangle(vl[v1], vl[v2], vl[v3], nl[n1], nl[n2], nl[n3], curMat));
         }
         else if(str == "bvh_threshold") {
             int thresh;
@@ -406,8 +407,17 @@ Triangle::Triangle(const Vector& v1, const Vector& v2, const Vector& v3) {
     vertices[0] = v1;
     vertices[1] = v2;
     vertices[2] = v3;
-    normals[0] = normals[1] = normals[2] = Vector::cross(v1, v2).norm();
+    normals[0] = normals[1] = normals[2] = Vector::cross(v2-v1, v3-v1).norm();
     mat = Material();
+    ntri = false;
+}
+
+Triangle::Triangle(const Vector& v1, const Vector& v2, const Vector& v3, const Material& m) {
+    vertices[0] = v1;
+    vertices[1] = v2;
+    vertices[2] = v3;
+    normals[0] = normals[1] = normals[2] = Vector::cross(v2-v1, v3-v1).norm();
+    mat = m;
     ntri = false;
 }
 
@@ -419,6 +429,17 @@ Triangle::Triangle(const Vector& v1, const Vector& v2, const Vector& v3, const V
     normals[1] = n2;
     normals[2] = n3;
     mat = Material();
+    ntri = true;
+}
+
+Triangle::Triangle(const Vector& v1, const Vector& v2, const Vector& v3, const Vector& n1, const Vector& n2, const Vector& n3, const Material& m) {
+    vertices[0] = v1;
+    vertices[1] = v2;
+    vertices[2] = v3;
+    normals[0] = n1;
+    normals[1] = n2;
+    normals[2] = n3;
+    mat = m;
     ntri = true;
 }
 

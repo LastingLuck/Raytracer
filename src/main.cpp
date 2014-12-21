@@ -50,6 +50,7 @@ int main( int argc, char* argv[] ){
     output[len] = 0;
     img->Write(output);
     did_output = true;
+    delete[] output;
     #ifdef DEBUG
     printf("Outputed image to file: %s\n", output);
     #endif
@@ -59,6 +60,7 @@ int main( int argc, char* argv[] ){
 	}
     
 	delete img;
+    delete data;
     
 	return 0;
 }

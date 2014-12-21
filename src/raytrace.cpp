@@ -189,13 +189,15 @@ Vector RayTrace::evaluateRayTree(const Scene& scn, const Ray& ray, int depth, bo
     }
     Intersect* in;
     //printf("Dir2: (%f %f %f)\n", ray->d.x, ray->d.y, ray->d.z);
-    bool hit = 0;
+    bool hit = false;
     //Go through each object and check for intersection
     if((in = intersect(ray, scn, .001, std::numeric_limits<double>::infinity(), useBVH))) {
-        hit = 1;
+        hit = true;
     }
     if(hit) {
-        return getColor(in, scn, depth, useBVH);
+        Vector pixcol = getColor(in, scn, depth, useBVH);
+        delete in;
+        return pixcol;
     }
     else {
         return scn.getBGColor();
@@ -569,6 +571,7 @@ Vector RayTrace::getColor(const Intersect* i, const Scene& scn, int depth, bool 
     shadow.setPosition(point);
 	Vector I;
 	Light L;
+    Intersect* in = 0;
 	//Directional
 	for(int j = 0; j < lnum[0]; j++) {
 		L = d[j];
@@ -579,7 +582,8 @@ Vector RayTrace::getColor(const Intersect* i, const Scene& scn, int depth, bool 
 		I = I.norm();
 		shadow.setDirection(I);
 		//Use really small number in intersect so that it doesn't intersect itself
-		if(intersect(shadow, scn, .001, std::numeric_limits<double>::infinity(), useBVH)) {
+		if((in = intersect(shadow, scn, .001, std::numeric_limits<double>::infinity(), useBVH))) {
+            delete in;
 			continue;
 		}
 		double dotni = Vector::dot(normal, I);
@@ -591,7 +595,14 @@ Vector RayTrace::getColor(const Intersect* i, const Scene& scn, int depth, bool 
 		//Phong
 		Vector ref = (normal * (2.0*dotni)) - I;
 		Vector V = direct * -1.0f;
-		double pspec = pow(Vector::dot(V.norm(), ref.norm()), m.getCosPower());
+        double powval = Vector::dot(V.norm(), ref.norm());
+        double pspec;
+        if(powval == 0.0) {
+            pspec = 0.0;
+        }
+        else {
+            pspec = pow(powval, m.getCosPower());
+        }
 		rval += spec.x * pspec * illum.x;
 		gval += spec.y * pspec * illum.y;
 		bval += spec.z * pspec * illum.z;
@@ -604,7 +615,8 @@ Vector RayTrace::getColor(const Intersect* i, const Scene& scn, int depth, bool 
 		double dist = I.magnitudeSq();
 		I = I.norm();
 		shadow.setDirection(I);
-		if(intersect(shadow, scn, .001, dist, useBVH)) {
+		if((in = intersect(shadow, scn, .001, dist, useBVH))) {
+            delete in;
 			continue;
 		}
 		Vector illum = L.getColor() * (1.0/dist);
@@ -616,7 +628,14 @@ Vector RayTrace::getColor(const Intersect* i, const Scene& scn, int depth, bool 
 		//Phong
 		Vector ref = (normal * (2.0*dotni)) - I;
 		Vector V = direct * -1.0;
-		double pspec = pow(Vector::dot(V.norm(), ref.norm()), m.getCosPower());
+		double powval = Vector::dot(V.norm(), ref.norm());
+        double pspec;
+        if(powval == 0.0) {
+            pspec = 0.0;
+        }
+        else {
+            pspec = pow(powval, m.getCosPower());
+        }
 		rval += spec.x * pspec * illum.x;
 		gval += spec.y * pspec * illum.y;
 		bval += spec.z * pspec * illum.z;
@@ -629,8 +648,9 @@ Vector RayTrace::getColor(const Intersect* i, const Scene& scn, int depth, bool 
 		double dist = I.magnitudeSq();
 		I = I.norm();
 		shadow.setDirection(I);
-		if(intersect(shadow, scn, .001, dist, useBVH)) {
-			continue;
+		if((in = intersect(shadow, scn, .001, dist, useBVH))) {
+			delete in;
+            continue;
 		}
 		Vector illum;
 		double dotni = Vector::dot(normal, I);
@@ -658,7 +678,14 @@ Vector RayTrace::getColor(const Intersect* i, const Scene& scn, int depth, bool 
 		//Phong
 		Vector ref = (normal * (2.0*dotni)) - I;
 		Vector V = direct * -1.0f;
-		double pspec = pow(Vector::dot(V.norm(), ref.norm()), m.getCosPower());
+		double powval = Vector::dot(V.norm(), ref.norm());
+        double pspec;
+        if(powval == 0.0) {
+            pspec = 0.0;
+        }
+        else {
+            pspec = pow(powval, m.getCosPower());
+        }
 		rval += spec.x * pspec * illum.x;
 		gval += spec.y * pspec * illum.y;
 		bval += spec.z * pspec * illum.z;
