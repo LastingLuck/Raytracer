@@ -597,7 +597,7 @@ Vector RayTrace::getColor(const Intersect* i, const Scene& scn, int depth, bool 
 		Vector V = direct * -1.0f;
         double powval = Vector::dot(V.norm(), ref.norm());
         double pspec;
-        if(powval == 0.0) {
+        if(powval < 0.0) {
             pspec = 0.0;
         }
         else {
@@ -630,7 +630,7 @@ Vector RayTrace::getColor(const Intersect* i, const Scene& scn, int depth, bool 
 		Vector V = direct * -1.0;
 		double powval = Vector::dot(V.norm(), ref.norm());
         double pspec;
-        if(powval == 0.0) {
+        if(powval < 0.0) {
             pspec = 0.0;
         }
         else {
@@ -680,7 +680,7 @@ Vector RayTrace::getColor(const Intersect* i, const Scene& scn, int depth, bool 
 		Vector V = direct * -1.0f;
 		double powval = Vector::dot(V.norm(), ref.norm());
         double pspec;
-        if(powval == 0.0) {
+        if(powval < 0.0) {
             pspec = 0.0;
         }
         else {
