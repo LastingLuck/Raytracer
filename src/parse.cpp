@@ -4,7 +4,6 @@
 #include <fstream>
 #include <stdexcept>
 
-#define MAX_LINE 100
 #define DEGTORAD 0.01745329251
 
 /********************
@@ -21,7 +20,7 @@ Scene::Scene(enum ProjType view) {
 
 void Scene::init() {
     //Camera
-    camera = Camera((Vector){0, 0, 0}, (Vector){0, 0, 1}, (Vector){0, 1, 0}, 45.0*DEGTORAD);
+    camera = Camera(Vector(), Vector(0, 0, 1), Vector(0, 1, 0), 45.0*DEGTORAD);
     //Image
     img = rt::Image("raytraced.bmp", 640, 480);
     //Light

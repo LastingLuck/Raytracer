@@ -155,7 +155,7 @@ Image* RayTrace::rayTrace(const Scene& scn) {
 			}
             //Get ray from the viewpoint to (x, y) point
             if(sample) {
-                Vector color[sampleNm];
+                Vector* color = new Vector[sampleNm];
 				for(int j = 0; j < sampleNm; j++) {
 					Ray trace = getRay(x, y, width, height, p1, p2, planeDist, c, proj, sample);
 					color[j] = evaluateRayTree(scn, trace, 0, useBVH);
@@ -168,6 +168,7 @@ Image* RayTrace::rayTrace(const Scene& scn) {
                 //printf("Ave: (%f %f %f)");
 				pix.SetClamp(col.x*255.0, col.y*255.0, col.z*255.0);
 				dest->GetPixel(x, y) = pix;
+                delete[] color;
 			}
             else {
 				Ray trace = getRay(x, y, width, height, p1, p2, planeDist, c, proj, sample);
@@ -742,7 +743,7 @@ Vector RayTrace::getColor(const Intersect* i, const Scene& scn, int depth, bool 
 		}
 	}
     
-    return (Vector){rval, gval, bval};
+    return Vector(rval, gval, bval);
 }
 
 //Gets the extreme points of top left and bottom right

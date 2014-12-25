@@ -1,5 +1,11 @@
 CC=g++
-CFLAGS=-c -Wall -std=c++11 -g
+UNAME := $(shell uname)
+ifeq ($(UNAME), Linux)
+LFLAGS=-std=c++11
+else
+LFLAGS=-lstdc++
+endif
+CFLAGS=-c -Wall -g
 OBJ=obj
 DFLAGS=
 ifdef DEBUG
@@ -12,7 +18,7 @@ endif
 all: raytrace
 
 raytrace: $(OBJ)/main.o $(OBJ)/parse.o $(OBJ)/raytrace.o $(OBJ)/image.o $(OBJ)/pixel.o $(OBJ)/EasyBMP.o
-	$(CC) -std=c++11 -g $(DFLAGS) -o raytrace $(OBJ)/main.o $(OBJ)/parse.o $(OBJ)/raytrace.o $(OBJ)/image.o $(OBJ)/pixel.o $(OBJ)/EasyBMP.o
+	$(CC) -g $(DFLAGS) $(LFLAGS) -o $@ $^
 
 $(OBJ)/main.o: src/main.cpp
 	$(CC) $(CFLAGS) $(DFLAGS) src/main.cpp -o $@
