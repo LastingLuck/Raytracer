@@ -161,11 +161,6 @@ Image* RayTrace::rayTrace(const Scene& scn) {
 					color[j] = evaluateRayTree(scn, trace, 0, useBVH);
 				}
 				Vector col = ave(color, sampleNm);
-                //for(int k = 0; k < sampleNm; k++) {
-                ////    printf("Color %d: (%f %f %f)\n", k, color.x, color.y,
-                //        trace.p.z, trace.d.x, trace.d.y, trace.d.z);
-                //}
-                //printf("Ave: (%f %f %f)");
 				pix.SetClamp(col.x*255.0, col.y*255.0, col.z*255.0);
 				dest->GetPixel(x, y) = pix;
                 delete[] color;
@@ -185,11 +180,10 @@ Image* RayTrace::rayTrace(const Scene& scn) {
 
 Vector RayTrace::evaluateRayTree(const Scene& scn, const Ray& ray, int depth, bool useBVH) const {
     if(depth > scn.getDepth()) {
-        //return scn->BGColor;
-        return Vector();
+        return scn->getBGColor();
+        //return Vector();
     }
     Intersect* in;
-    //printf("Dir2: (%f %f %f)\n", ray->d.x, ray->d.y, ray->d.z);
     bool hit = false;
     //Go through each object and check for intersection
     if((in = intersect(ray, scn, .001, std::numeric_limits<double>::infinity(), useBVH))) {
@@ -254,9 +248,6 @@ Intersect* RayTrace::intersect(const Ray& trace, const Scene& scn, double dmin, 
 			}
 		}
         */
-		if(min != 0) {
-			//printf("Dir3: (%f %f %f)\n", min->r.d.x, min->r.d.y, min->r.d.z);
-		}
 	}
 	else {
 		//min = intersectBVH(trace, scn.getBVH(), dmin, dmax);
@@ -377,8 +368,6 @@ Intersect* RayTrace::intersectTriangle(const Ray& trace, const std::vector<Trian
 		double beta = detb / detA;
 		double gamma = detg / detA;
 		if(beta >= 0 && beta <= 1 && gamma >= 0  && gamma <= 1 && beta + gamma <= 1) {
-			//Vector point = add(t.vertices[0], add(multiply(sub(t.vertices[1], t.vertices[0]),beta), 
-			//					multiply(sub(t.vertices[2], t.vertices[0]),gamma)));
             Vector point = t.getVertex(0) + 
                     (((t.getVertex(1) - t.getVertex(0)) * beta) + ((t.getVertex(2) - t.getVertex(0)) * gamma));
 			double dist = Vector::lengthSq(point, rp);
@@ -398,7 +387,6 @@ Intersect* RayTrace::intersectTriangle(const Ray& trace, const std::vector<Trian
 					Vector norm1 = (ang1 > 0) ? t.getNormal(0)*-1.0f : t.getNormal(0);
 					Vector norm2 = (ang2 > 0) ? t.getNormal(1)*-1.0f : t.getNormal(1);
 					Vector norm3 = (ang3 > 0) ? t.getNormal(2)*-1.0f : t.getNormal(2);
-					//normal = norm(add(multiply(norm1, beta), add(multiply(norm2, gamma), multiply(norm3, alpha))));
                     normal = ((norm1 * beta) + (norm2 * gamma) + (norm3 * alpha)).norm();
 				}
 				else {
@@ -423,7 +411,6 @@ Intersect* RayTrace::intersectTriangle(const Ray& trace, const std::vector<Trian
 					Vector norm1 = (ang1 > 0) ? t.getNormal(0)*-1.0f : t.getNormal(0);
 					Vector norm2 = (ang2 > 0) ? t.getNormal(1)*-1.0f : t.getNormal(1);
 					Vector norm3 = (ang3 > 0) ? t.getNormal(2)*-1.0f : t.getNormal(2);
-					//normal = norm(add(multiply(norm1, beta), add(multiply(norm2, gamma), multiply(norm3, alpha))));
                     normal = ((norm1 * beta) + (norm2 * gamma) + (norm3 * alpha)).norm();
 				}
 				else {
@@ -536,7 +523,6 @@ Ray RayTrace::getRay(int x, int y, int w, int h, const Vector& p1, const Vector&
         p = p + p1;
         e = Ray(p, c.getDirection());
     }
-    //printf("Dir1: (%f %f %f)\n", e.d.x, e.d.y, e.d.z);
     return e;
 }
 
@@ -558,7 +544,6 @@ Vector RayTrace::getColor(const Intersect* i, const Scene& scn, int depth, bool 
 	bval = aColor.z;
 	//Figure out diffuse light using Lambertian shading (Ld)
 	//Point that the ray intersected the sphere
-	//Vector point = add(r.p, multiply(r.d, i->t));
 	Vector point = i->p;
 	Vector direct = i->r.getDirection();
 	//Normal norm(P-C)
@@ -668,7 +653,6 @@ Vector RayTrace::getColor(const Intersect* i, const Scene& scn, int depth, bool 
 		//Linearly interpolate
 		else {
 			//Get amount alpha is between the 2 angles (angle1=1, angle2=0)
-			// 1 - (alpha-angle1 / angle2-angle1)
 			double amt = 1 - ((alpha - L.getSpotAngle()) / (L.getMaxAngle() - L.getSpotAngle()));
 			//Multiply light by amount
 			illum = L.getColor() * ((1.0/dist)*amt);
@@ -699,7 +683,6 @@ Vector RayTrace::getColor(const Intersect* i, const Scene& scn, int depth, bool 
 		Ray reflection;
 		reflection.setPosition(point);
 		reflection.setDirection((normal * (2.0f*Vector::dot(normal, irdir))) - irdir);
-        // = sub(multiply(normal, 2.0*dot(normal, irdir)), irdir);
 		refColor = evaluateRayTree(scn, reflection, depth+1, useBVH);
 		rval += spec.x * refColor.x;
 		gval += spec.y * refColor.y;
@@ -717,22 +700,17 @@ Vector RayTrace::getColor(const Intersect* i, const Scene& scn, int depth, bool 
 		}
 		else {
 			ior = 1.0 / m.getIndexRefract();
-			//normal = multiply(normal, -1);
 		}
 		// (nr*dot(N,I)-sqrt(1-nr^2(1-dot(N,I)^2)))*N - nr*I
 		// nr*I + (nr*dot(I,N)-sqrt(1-(nr*nr)*(1-dot(I,N)^2)))*N
 		//Total internal refraction if sqrt < 0
 		double tir = 1.0 - (ior*ior) * (1.0 - (dni*dni));
 		if(tir >= 0) {
-			//Vector refdir = add(multiply(rdir, ior), multiply(normal, (ior*dni)-sqrt(tir)));
-			//Vector refdir = sub(multiply(normal, ior*dni-sqrt(tir)), multiply(irdir, ior));
 			Vector refdir;
 			if(dni >= 0) {
-				//refdir = sub(multiply(normal, ior*dni-sqrt(tir)), multiply(irdir, ior));
                 refdir = (normal * (ior*dni-sqrt(tir))) - (irdir * ior);
 			}
 			else {
-				//refdir = sub(multiply(normal, ior*dni+sqrt(tir)), multiply(irdir, ior));
                 refdir = (normal * (ior*dni+sqrt(tir))) - (irdir * ior);
 			}
 			refraction.setDirection(refdir.norm());
