@@ -1,6 +1,7 @@
 # README #
 
 This is a simple C++ implementation of a ray tracer that outputs images in bmp format.
+More info and images can be found [here](https://sites.google.com/site/alexdahl5607/ray-tracer-pt-2).
 
 **Supports**:
 
