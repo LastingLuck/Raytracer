@@ -6,6 +6,54 @@
 
 #define DEGTORAD 0.01745329251
 
+/*======================== X-tests ========================*/
+
+#define AXISTEST_X01(a, b, fa, fb)			   \
+	p0 = a*v0.y - b*v0.z;			       	   \
+	p2 = a*v2.y - b*v2.z;			       	   \
+        if(p0<p2) {fmin=p0; fmax=p2;} else {fmin=p2; fmax=p0;} \
+	rad = fa * boxhalfsize.y + fb * boxhalfsize.z;   \
+	if(fmin>rad || fmax<-rad) return false;
+
+#define AXISTEST_X2(a, b, fa, fb)			   \
+	p0 = a*v0.y - b*v0.z;			           \
+	p1 = a*v1.y - b*v1.z;			       	   \
+        if(p0<p1) {fmin=p0; fmax=p1;} else {fmin=p1; fmax=p0;} \
+	rad = fa * boxhalfsize.y + fb * boxhalfsize.z;   \
+	if(fmin>rad || fmax<-rad) return false;
+
+/*======================== Y-tests ========================*/
+
+#define AXISTEST_Y02(a, b, fa, fb)			   \
+	p0 = -a*v0.x + b*v0.z;		      	   \
+	p2 = -a*v2.x + b*v2.z;	       	       	   \
+        if(p0<p2) {fmin=p0; fmax=p2;} else {fmin=p2; fmax=p0;} \
+	rad = fa * boxhalfsize.x + fb * boxhalfsize.z;   \
+	if(fmin>rad || fmax<-rad) return false;
+
+#define AXISTEST_Y1(a, b, fa, fb)			   \
+	p0 = -a*v0.x + b*v0.z;		      	   \
+	p1 = -a*v1.x + b*v1.z;	     	       	   \
+        if(p0<p1) {fmin=p0; fmax=p1;} else {fmin=p1; fmax=p0;} \
+	rad = fa * boxhalfsize.x + fb * boxhalfsize.z;   \
+	if(fmin>rad || fmax<-rad) return false;
+
+/*======================== Z-tests ========================*/
+
+#define AXISTEST_Z12(a, b, fa, fb)			   \
+	p1 = a*v1.x - b*v1.y;			           \
+	p2 = a*v2.x - b*v2.y;			       	   \
+        if(p2<p1) {fmin=p2; fmax=p1;} else {fmin=p1; fmax=p2;} \
+	rad = fa * boxhalfsize.x + fb * boxhalfsize.y;   \
+	if(fmin>rad || fmax<-rad) return false;
+
+#define AXISTEST_Z0(a, b, fa, fb)			   \
+	p0 = a*v0.x - b*v0.y;				   \
+	p1 = a*v1.x - b*v1.y;			           \
+    if(p0<p1) {fmin=p0; fmax=p1;} else {fmin=p1; fmax=p0;} \
+	rad = fa * boxhalfsize.x + fb * boxhalfsize.y;   \
+	if(fmin>rad || fmax<-rad) return false;
+
 /********************
  * Scene
  ********************/
@@ -458,6 +506,7 @@ Light::Light() {
     direction = Vector(0, 1, 0);
     angle1 = M_PI_4;
     angle2 = M_PI_2;
+    ltype = AMBIENT;
 }
 
 Light::Light(const Vector& lightColor) {
@@ -466,6 +515,7 @@ Light::Light(const Vector& lightColor) {
     direction = Vector(0, 1, 0);
     angle1 = M_PI_4;
     angle2 = M_PI_2;
+    ltype = AMBIENT;
 }
 
 Light::Light(const Vector& lightColor, const Vector& lightPosDir, enum LightType type) {
@@ -474,10 +524,11 @@ Light::Light(const Vector& lightColor, const Vector& lightPosDir, enum LightType
         position = lightPosDir;
         direction = Vector(0, 1, 0);
     }
-    else {
+    else if(type == DIRECTIONAL) {
         position = Vector();
         direction = lightPosDir;
     }
+    ltype = type;
     angle1 = M_PI_4;
     angle2 = M_PI_2;
 }
@@ -488,6 +539,7 @@ Light::Light(const Vector& lightColor, const Vector& lightPos, const Vector& lig
     direction = lightDir;
     angle1 = spotAngle;
     angle2 = maxAngle;
+    ltype = SPOT;
 }
 
 /********************
@@ -605,10 +657,10 @@ bool AABB::isInBox(const Sphere& sph) const {
 //Fast 3D Triangle-Box Overlap Testing
 bool AABB::isInBox(const Triangle& tri) const {
 	Vector v0, v1, v2, e0, e1, e2, normal;
-    float fex, fey, fez, min, max, p0, p1, p2, rad;
+    float fex, fey, fez, fmin, fmax, p0, p1, p2, rad;
     Vector boxhalfsize = (max - min) / 2.0;
     Vector bc = min + boxhalfsize;
-    std::vector<Vector> verts = tri.getVerticies();
+    std::vector<Vector> verts = tri.getVertices();
     v0 = verts[0] - bc;
     v1 = verts[1] - bc;
     v2 = verts[2] - bc;
@@ -640,23 +692,23 @@ bool AABB::isInBox(const Triangle& tri) const {
     AXISTEST_Z12(e2.y, e2.x, fey, fex);
     
     //Bullet 1
-    findMinMax(v0.x, v1.x, v2.x, min, max);
-    if(min > boxhalfsize.x || max < -boxhalfsize.x) {
+    findMinMax(v0.x, v1.x, v2.x, fmin, fmax);
+    if(fmin > boxhalfsize.x || fmax < -boxhalfsize.x) {
         return false;
     }
     
-    findMinMax(v0.y, v1.y, v2.y, min, max);
-    if(min > boxhalfsize.y || max < -boxhalfsize.y) {
+    findMinMax(v0.y, v1.y, v2.y, fmin, fmax);
+    if(fmin > boxhalfsize.y || fmax < -boxhalfsize.y) {
         return false;
     }
     
-    findMinMax(v0.z, v1.z, v2.z, min, max);
-    if(min > boxhalfsize.z || max < -boxhalfsize.z) {
+    findMinMax(v0.z, v1.z, v2.z, fmin, fmax);
+    if(fmin > boxhalfsize.z || fmax < -boxhalfsize.z) {
         return false;
     }
     
     //Bullet 2
-    normal = Vector.cross(e0, e1);
+    normal = Vector::cross(e0, e1);
     Plane pl;
     pl.point = v0;
     pl.normal = normal;
@@ -668,7 +720,7 @@ bool AABB::isInBox(const Triangle& tri) const {
 }
 
 //Also From Triangle-Box Testing
-bool AABB::isInBox(const Plane& pln) {
+bool AABB::isInBox(const Plane& pln) const {
 	Vector normal = pln.normal, vert = pln.point, maxbox = max;
 	Vector vmin, vmax; 
     float v;
@@ -701,16 +753,16 @@ bool AABB::isInBox(const Plane& pln) {
       vmax.z = -maxbox.z - v;
     }
     
-    if(Vector.dot(normal, vmin) > 0) {
+    if(Vector::dot(normal, vmin) > 0) {
         return false;
     }
-    if(Vector.dot(normal, vmax) >= 0) {
+    if(Vector::dot(normal, vmax) >= 0) {
         return true;
     }
     return false;
 }
 
-void AABB::findMinMax(float x0, float x1, float x2, float& min, float& max) {
+void AABB::findMinMax(float x0, float x1, float x2, float& min, float& max) const {
 	min = max = x0;
 	if(x1<min) min=x1;
 	if(x1>max) max=x1;

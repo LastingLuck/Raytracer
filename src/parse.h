@@ -15,8 +15,10 @@ enum ProjType {
     PERSP
 };
 enum LightType { 
+    AMBIENT,
+    DIRECTIONAL,
     POINT, 
-    DIRECTIONAL 
+    SPOT
 };
 
 class Vector {
@@ -173,12 +175,14 @@ class Light {
         void setDirection(const Vector& newDir) { direction = newDir; }
         void setSpotAngle(float angle) { angle1 = angle; }
         void setMaxAngle(float angle) { angle2 = angle; }
+        void setType(enum LightType type) { ltype = type; }
         
         Vector getColor() const { return color; }
         Vector getPosition() const { return position; }
         Vector getDirection() const { return direction; }
         float getSpotAngle() const { return angle1; }
         float getMaxAngle() const { return angle2; }
+        enum LightType getType() const { return ltype; }
         
     private:
         Vector color;        //Color of the light (All)
@@ -186,6 +190,7 @@ class Light {
         Vector direction;    //Direction the light is pointing (Directional, Spot)
         float angle1;        //Angle where it acts as a point light (Spot)
         float angle2;        //Max angle that the spot light reaches (Spot)
+        enum LightType ltype; //Light type (0-ambient, 1-directional, 2-point, 3-spot)
 };
 
 class Camera {
@@ -272,7 +277,7 @@ class AABB {
         AABB* right;
         AABB* parent;
         
-        void findMinMax(float x0, float x1, float x2, float& min, float& max);
+        void findMinMax(float x0, float x1, float x2, float& min, float& max) const;
 };
 
 class Scene {
