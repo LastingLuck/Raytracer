@@ -150,6 +150,15 @@ class Triangle {
         Material mat;
 };
 
+class Plane {
+    public:
+        Plane();
+        Vector normal;
+        Vector point;
+    private:
+        
+};
+
 class Light {
     public:
         Light();
@@ -226,25 +235,44 @@ class Image {
 class AABB {
     public:
         AABB();
+        AABB(const Vector& minimum, const Vector& maximum);
         AABB(AABB* p);
-        AABB(std::vector<Sphere> sphs, std::vector<Triangle> tris);
+        AABB(const std::vector<Sphere> sphs, const std::vector<Triangle> tris);
         
+        void setMin(const Vector& m) { min = m; }
+        void setMax(const Vector& m) { max = m; }
+        void setLeftChild(AABB* child) { left = child; }
+        void setRightChild(AABB* child) { right = child; }
+        void setParent(AABB* p) { parent = p; }
         void addSphere(const Sphere& sph) { spheres.push_back(sph); }
         void addTriangle(const Triangle& tri) { triangles.push_back(tri); }
+        void setSpheres(const std::vector<Sphere> sphs) { spheres = sphs; }
+        void setTriangles(const std::vector<Triangle> tris) { triangles = tris; }
         
-        std::vector<Sphere> getSpheres() { return spheres; }
-        std::vector<Triangle> getTriangles() { return triangles; }
-        bool isLeaf() { return !left && !right; }
-        AABB* getLeftChild() { return left; }
-        AABB* getRightChild() { return right; }
-        AABB* getParent() { return parent; }
+        Vector getMin() const { return min; }
+        Vector getMax() const { return max; }
+        std::vector<Sphere> getSpheres() const { return spheres; }
+        std::vector<Triangle> getTriangles() const { return triangles; }
+        bool isLeaf() const { return !left && !right; }
+        AABB* getLeftChild() const { return left; }
+        AABB* getRightChild() const { return right; }
+        AABB* getParent() const { return parent; }
+        int getObjectNum() const { return spheres.size()+triangles.size(); }
+        
+        bool isInBox(const Sphere& sph) const;
+        bool isInBox(const Triangle& tri) const;
+        bool isInBox(const Plane& pln) const;
     private:
         std::vector<Sphere> spheres;
         std::vector<Triangle> triangles;
+        Vector min;
+        Vector max;
         //May not actually be left and right in space.
         AABB* left;
         AABB* right;
         AABB* parent;
+        
+        void findMinMax(float x0, float x1, float x2, float& min, float& max);
 };
 
 class Scene {
@@ -273,7 +301,7 @@ class Scene {
         void setAmbientLight(const Light& ambLight) { ambient = ambLight; }
         void setBVHDepth(int depth) { bvhDepth = depth; }
         void setBVHThreshold(int threshold) { bvhThresh = threshold; }
-        void setBVH(AABB* bvhRoot) { bvh = bvhRoot; }
+        void setBVHRoot(AABB* bvhRoot) { bvh = bvhRoot; }
         void setSampleRate(int rate) { sampleNum = rate; }
         
         Camera getCamera() const { return camera; }
@@ -293,7 +321,7 @@ class Scene {
         int getBVHDepth() const { return bvhDepth; }
         int getBVHThreshold() const { return bvhThresh; }
         bool useBvh() const { return useBVH; }
-        AABB* getBVH() const { return bvh; }
+        AABB* getBVHRoot() const { return bvh; }
         int getSampleRate() const { return sampleNum; }
         
     private:

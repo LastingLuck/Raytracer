@@ -533,6 +533,13 @@ rt::Image::Image(const std::string& name, int imageWidth, int imageHeight) {
  ********************/
 AABB::AABB() {
     left = right = parent = 0;
+    min = max = Vector();
+}
+
+AABB::AABB(const Vector& minimum, const Vector& maximum) {
+    left = right = parent = 0;
+    min = minimum;
+    max = maximum;
 }
 
 AABB::AABB(AABB* p) {
@@ -540,13 +547,176 @@ AABB::AABB(AABB* p) {
     parent = p;
 }
 
-AABB::AABB(std::vector<Sphere> sphs, std::vector<Triangle> tris) {
+AABB::AABB(const std::vector<Sphere> sphs, const std::vector<Triangle> tris) {
     spheres = sphs;
     triangles = tris;
     left = right = parent = 0;
 }
 
+//http://www.mrtc.mdh.se/projects/3Dgraphics/paperF.pdf
+//On Faster Sphere-Box Overlap Testing
+bool AABB::isInBox(const Sphere& sph) const {
+    double d = 0, e, rad = sph.getRadius();
+	Vector spos = sph.getPosition();
+	//X
+	if((e = spos.x - min.x) < 0) {
+		if(e < -rad) {
+			return false;
+		}
+		d += e*e;
+	}
+	else if((e = spos.x - max.x) > 0) {
+		if(e > rad) {
+			return false;
+		}
+		d += e*e;
+	}
+	//Y
+	if((e = spos.y - min.y) < 0) {
+		if(e < -rad) {
+			return false;
+		}
+		d += e*e;
+	}
+	else if((e = spos.y - max.y) > 0) {
+		if(e > rad) {
+			return false;
+		}
+		d += e*e;
+	}
+	//Z
+	if((e = spos.z - min.z) < 0) {
+		if(e < -rad) {
+			return false;
+		}
+		d += e*e;
+	}
+	else if((e = spos.z - max.z) > 0) {
+		if(e > rad) {
+			return false;
+		}
+		d += e*e;
+	}
+	
+	return (d <= (rad*rad));
+}
 
+//http://fileadmin.cs.lth.se/cs/Personal/Tomas_Akenine-Moller/pubs/tribox.pdf
+//Fast 3D Triangle-Box Overlap Testing
+bool AABB::isInBox(const Triangle& tri) const {
+	Vector v0, v1, v2, e0, e1, e2, normal;
+    float fex, fey, fez, min, max, p0, p1, p2, rad;
+    Vector boxhalfsize = (max - min) / 2.0;
+    Vector bc = min + boxhalfsize;
+    std::vector<Vector> verts = tri.getVerticies();
+    v0 = verts[0] - bc;
+    v1 = verts[1] - bc;
+    v2 = verts[2] - bc;
+    
+    e0 = v1 - v0;
+    e1 = v2 - v1;
+    e2 = v0 - v2;
+    
+    //Bullet 3
+    fex = fabs(e0.x);
+    fey = fabs(e0.y);
+    fez = fabs(e0.z);
+    AXISTEST_X01(e0.z, e0.y, fez, fey);
+    AXISTEST_Y02(e0.z, e0.x, fez, fex);
+    AXISTEST_Z12(e0.y, e0.x, fey, fex);
+    
+    fex = fabs(e1.x);
+    fey = fabs(e1.y);
+    fez = fabs(e1.z);
+    AXISTEST_X01(e1.z, e1.y, fez, fey);
+    AXISTEST_Y02(e1.z, e1.x, fez, fex);
+    AXISTEST_Z0(e1.y, e1.x, fey, fex);
+    
+    fex = fabs(e2.x);
+    fey = fabs(e2.y);
+    fez = fabs(e2.z);
+    AXISTEST_X2(e2.z, e2.y, fez, fey);
+    AXISTEST_Y1(e2.z, e2.x, fez, fex);
+    AXISTEST_Z12(e2.y, e2.x, fey, fex);
+    
+    //Bullet 1
+    findMinMax(v0.x, v1.x, v2.x, min, max);
+    if(min > boxhalfsize.x || max < -boxhalfsize.x) {
+        return false;
+    }
+    
+    findMinMax(v0.y, v1.y, v2.y, min, max);
+    if(min > boxhalfsize.y || max < -boxhalfsize.y) {
+        return false;
+    }
+    
+    findMinMax(v0.z, v1.z, v2.z, min, max);
+    if(min > boxhalfsize.z || max < -boxhalfsize.z) {
+        return false;
+    }
+    
+    //Bullet 2
+    normal = Vector.cross(e0, e1);
+    Plane pl;
+    pl.point = v0;
+    pl.normal = normal;
+    if(!isInBox(pl)) {
+        return false;
+    }
+    
+    return true;
+}
+
+//Also From Triangle-Box Testing
+bool AABB::isInBox(const Plane& pln) {
+	Vector normal = pln.normal, vert = pln.point, maxbox = max;
+	Vector vmin, vmax; 
+    float v;
+    
+    v = vert.x;
+    if(normal.x>0.0f) {
+      vmin.x = -maxbox.x - v;
+      vmax.x = maxbox.x - v;
+    }
+    else {
+      vmin.x = maxbox.x - v;
+      vmax.x = -maxbox.x - v;
+    }
+    
+    if(normal.y>0.0f) {
+      vmin.y = -maxbox.y - v;
+      vmax.y = maxbox.y - v;
+    }
+    else {
+      vmin.y = maxbox.y - v;
+      vmax.y = -maxbox.y - v;
+    }
+    
+    if(normal.z>0.0f) {
+      vmin.z = -maxbox.z - v;
+      vmax.z = maxbox.z - v;
+    }
+    else {
+      vmin.z = maxbox.z - v;
+      vmax.z = -maxbox.z - v;
+    }
+    
+    if(Vector.dot(normal, vmin) > 0) {
+        return false;
+    }
+    if(Vector.dot(normal, vmax) >= 0) {
+        return true;
+    }
+    return false;
+}
+
+void AABB::findMinMax(float x0, float x1, float x2, float& min, float& max) {
+	min = max = x0;
+	if(x1<min) min=x1;
+	if(x1>max) max=x1;
+	if(x2<min) min=x2;
+	if(x2>max) max=x2;
+}
 
 /********************
  * Printing

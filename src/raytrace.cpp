@@ -102,21 +102,21 @@ Image* RayTrace::rayTrace(const Scene& scn) {
     //printf("Bottom Left Close: (%f %f %f)\n", botleft.x, botleft.y, botleft.z);
     //printf("Top Right Far: (%f %f %f)\n", topright.x, topright.y, topright.z);
     //printf("\n");
-    //Box* rootbox = new Box;
-	//rootbox->min = add(botleft, -.5);
-	//rootbox->max = add(topright, .5);
-	//scn->bvh = rootbox;
-	//makeBVH(scn, scn->bvh, 0);
-	//printBVH(scn->bvh, 0);
+    //AABB* rootbox = new AABB();
+	//rootbox->setMin(botleft + -.5);
+	//rootbox->setMax(topright + .5);
+	//scn.setBVHRoot(rootbox);
+	//makeBVH(scn, rootbox, 0);
+	//printBVH(rootbox, 0);
 	//useBVH = true;
     //#endif
     /*
-    if(scc->objNum > scn->bvhthresh) {
-		Box* rootbox = new Box;
-		rootbox->min = botleft;
-		rootbox->max = topright;
+    if(scn.getNumObjects() > scn.getBVHThreshold()) {
+		AABB* rootbox = new AABB();
+		rootbox->setMin(botleft);
+		rootbox->setMax(topright);
 		useBVH = true;
-		makeBVH(scn, scn->bvh, 0);
+		makeBVH(scn, rootbox, 0);
 	}
 	*/
 	ProjType proj = scn.getProjType();
@@ -180,7 +180,7 @@ Image* RayTrace::rayTrace(const Scene& scn) {
 
 Vector RayTrace::evaluateRayTree(const Scene& scn, const Ray& ray, int depth, bool useBVH) const {
     if(depth > scn.getDepth()) {
-        return scn->getBGColor();
+        return scn.getBGColor();
         //return Vector();
     }
     Intersect* in;
@@ -742,103 +742,102 @@ void RayTrace::getExtremePoints(const Camera& c, double d, double w, double h, V
 /**
  * Acceleration Structure (BVH)
  */
-/*
 void BVH::make(Scene& scn, AABB* box, int depth) {
 	//If depth is 0, start by making first box
 		//Initialize values so that box starts with every object
 	if(depth == 0) {
-		//box = new Box;
-		box->parent = 0;
-		box->sub1 = 0;
-		box->sub2 = 0;
-		//findBoundingVerts(scn, box->min, box->max);
-		box->spheres = scn->spheres;
-		box->triangles = scn->triangles;
-		box->planes = scn->planes;
+		//box = new AABB(scn->spheres, scn->triangles); //< Already made before this call
+        box->setSpheres(scn.getSpheres());
+        box->setTriangles(scn.getTriangles());
+		//box->parent = 0;
+		//box->sub1 = 0;
+		//box->sub2 = 0;
+		//box->spheres = scn->spheres;
+		//box->triangles = scn->triangles;
+		//box->planes = scn->planes;
 	}
-	//Else find Longest dimention and split along that
+	//Find Longest dimention and split along that
 		//Loop through each object in previous box
 		//Figure out which box they belong in, add it
-	Vector bmin = box->min;
-	Vector bmax = box->max;
+	Vector bmin = box->getMin();
+	Vector bmax = box->getMax();
 	//char axis = findLongestAxis(vrts);
 	char axis = findLongestAxis(bmin, bmax);
-	Vector w = sub(bmax, bmin);
+	Vector w = bmax - bmin;
 	if(depth == 1) {
 		//printf("Axis: %c\n", axis);
 		//printf("W: (%f %f %f)\n", w.x, w.y, w.z);
 	}
-	Box* s1 = new Box;
-	s1->parent = box;
-	s1->sub1 = 0;
-	s1->sub2 = 0;
-	s1->objNum = 0;
-	Box* s2 = new Box;
-	s2->parent = box;
-	s2->sub1 = 0;
-	s2->sub2 = 0;
-	s2->objNum = 0;
+	AABB* s1 = new AABB(box);
+	//s1->parent = box;
+	//s1->sub1 = 0;
+	//s1->sub2 = 0;
+	//s1->objNum = 0;
+	AABB* s2 = new AABB(box);
+	//s2->parent = box;
+	//s2->sub1 = 0;
+	//s2->sub2 = 0;
+	//s2->objNum = 0;
 	float hp;
 	switch(axis) {
 		case 0: //X
 			hp = w.x / 2.0;
 			///Sub Box 1 (Left)
-			s1->min = bmin;
-			s1->max = (Vector){bmax.x-hp, bmax.y, bmax.z};
+			s1->setMin(bmin);
+			s1->setMax(Vector(bmax.x-hp, bmax.y, bmax.z));
 			///Sub Box 2 (Right)
-			s2->min = (Vector){bmin.x+hp, bmin.y, bmin.z};
-			s2->max = bmax;
+			s2->setMin(Vector(bmin.x+hp, bmin.y, bmin.z));
+			s2->setMax(bmax);
 			break;
 		case 1: //Y
 			hp = w.y / 2.0;
 			///Sub Box 1 (Top)
-			s1->min = (Vector){bmin.x, bmin.y+hp, bmin.z};
-			s1->max = bmax;
+			s1->setMin(Vector(bmin.x, bmin.y+hp, bmin.z));
+			s1->setMax(bmax);
 			///Sub Box 2 (Bottom)
-			s2->min = bmin;
-			s2->max = (Vector){bmax.x, bmax.y-hp, bmax.z};
+			s2->setMin(bmin);
+			s2->setMax(Vector(bmax.x, bmax.y-hp, bmax.z));
 			break;
 		case 2: //Z
 			hp = w.z / 2.0;
 			///Sub Box 1 (Front)
-			s1->min = bmin;
-			s1->max = (Vector){bmax.x, bmax.y, bmax.z-hp};
+			s1->setMin(bmin);
+			s1->setMax(Vector(bmax.x, bmax.y, bmax.z-hp));
 			///Sub Box 2 (Back)
-			s2->min = (Vector){bmin.x, bmin.y, bmin.z+hp};
-			s2->max = bmax;
+			s2->setMin(Vector(bmin.x, bmin.y, bmin.z+hp));
+			s2->setMax(bmax);
 			break;
 	}
-	//Find which box objects are int
+	//Find which box objects are in 
 	//bool noitems1 = true;
 	//bool noitems2 = true;
-	int num = scn->spheres.size();
+    std::vector<Sphere> sphs = scn.getSpheres();
+	int num = sphs.size();
 	for(int i = 0; i < num; i++) {
-		Sphere sphere = scn->spheres[i];
-		if(isSphereInBox(s1, &sphere)) {
-			s1->spheres.push_back(sphere);
-			s1->objNum++;
+		Sphere sphere = sphs[i];
+		if(s1->isInBox(sphere)) {
+			s1->addSphere(sphere);
 			//noitems1 = false;
 		}
-		if(isSphereInBox(s2, &sphere)) {
-			s2->spheres.push_back(sphere);
-			s2->objNum++;
+		if(s2->isInBox(sphere)) {
+			s2->addSphere(sphere);
 			//noitems2 = false;
 		}
 	}
-	num = scn->triangles.size();
+    std::vector<Triangle> tris = scn.getTriangles();
+	num = tris.size();
 	for(int i = 0; i < num; i++) {
-		Triangle triangle = scn->triangles[i];
-		if(isTriangleInBox(s1, &triangle)) {
-			s1->triangles.push_back(triangle);
-			s1->objNum++;
+		Triangle triangle = tris[i];
+		if(s1->isInBox(triangle)) {
+			s1->addTriangle(triangle);
 			//noitems1 = false;
 		}
-		if(isTriangleInBox(s2, &triangle)) {
-			s2->triangles.push_back(triangle);
-			s2->objNum++;
+		if(s2->isInBox(triangle)) {
+			s2->addTriangle(triangle);
 			//noitems2 = false;
 		}
 	}
+    /*
 	num = scn->planes.size();
 	for(int i = 0; i < num; i++) {
 		Plane plane = scn->planes[i];
@@ -853,24 +852,24 @@ void BVH::make(Scene& scn, AABB* box, int depth) {
 			//noitems2 = false;
 		}
 	}
-	
-	box->sub1 = s1;
-	box->sub2 = s2;
+	*/
+	box->setLeftChild(s1);
+	box->setRightChild(s2);
 	//If depth > bvhdepth
 	//return. Don't do recursive calls
-	if(depth == scn->bvhdepth) {
+	if(depth == scn.getBVHDepth()) {
 		return;
 	}
 	//Recursively call this function with the 2 new subboxes
-	//Don't recurse on boxes with 0-1 items in it
-	if(s1->objNum > 1) {
-		makeBVH(scn, box->sub1, depth+1);
+	//Don't recurse on boxes with 0-2 items in it
+	if(s1->getObjectNum() > 2) {
+		make(scn, s1, depth+1);
 	}
-	if(s2->objNum > 1) {
-		makeBVH(scn, box->sub2, depth+1);
+	if(s2->getObjectNum() > 2) {
+		make(scn, s2, depth+1);
 	}
 }
- 
+ /*
 Intersect* intersectBVH(Ray* trace, Box* bvh, double dmin, double dmax) {
 	Intersect* in = 0;
 	//Vector min = bhv->min, max - bvh->max;
@@ -936,17 +935,18 @@ Intersect* intersectBVH(Ray* trace, Box* bvh, double dmin, double dmax) {
 	}
 	return in;
 }
+*/
 
 //std::array<Vector, 8> (&verts)
-void findBoundingVerts(SceneData* scn, Vector& bl, Vector& tr) {
+void BVH::findBoundingVerts(const Scene& scn, Vector& bl, Vector& tr) {
 	Vector max, min;
 	bool init = false;
 	Sphere s;
-	std::vector<Sphere> sph = scn->spheres;
+	std::vector<Sphere> sph = scn.getSpheres();
 	int num = sph.size();
 	for(int i = 0; i < num; i++) {
 		s = sph[i];
-		Vector pnt = add(s.position, s.radius);
+		Vector pnt = s.getPosition() + s.getRadius();
 		if(!init) {
 			max.x = pnt.x;
 			max.y = pnt.y;
@@ -964,7 +964,7 @@ void findBoundingVerts(SceneData* scn, Vector& bl, Vector& tr) {
 				max.z = pnt.z;
 			}
 		}
-		pnt = sub(s.position, s.radius);
+		pnt = s.getPosition() - s.getRadius();
 		if(!init) {
 			min.x = pnt.x;
 			min.y = pnt.y;
@@ -986,12 +986,12 @@ void findBoundingVerts(SceneData* scn, Vector& bl, Vector& tr) {
 	}
 	
 	Triangle t;
-	std::vector<Triangle> tri = scn->triangles;
+	std::vector<Triangle> tri = scn.getTriangles();
 	num = tri.size();
 	for(int i = 0; i < num; i++) {
 		t = tri[i];
 		for(int j = 0; j < 3; j++) {
-			Vector v = t.vertices[j];
+			Vector v = t.getVertex(j);
 			if(!init) {
 				max = v;
 				min = v;
@@ -1022,17 +1022,17 @@ void findBoundingVerts(SceneData* scn, Vector& bl, Vector& tr) {
 	bl = min;
 	tr = max;
     
-	Rectangle r;
-	std::vector<Rectangle> rec = scn->rectangles;
-	num = rec.size();
-	for(int i = 0; i < num; i++) {
-		r = rec[i];
-	}
+	//Rectangle r;
+	//std::vector<Rectangle> rec = scn->rectangles;
+	//num = rec.size();
+	//for(int i = 0; i < num; i++) {
+		//r = rec[i];
+	//}
 }
 
 //std::array<Vector, 8> vrts
-char findLongestAxis(Vector vmin, Vector vmax) {
-	Vector w = sub(vmax, vmin);
+char BVH::findLongestAxis(const Vector& vmin, const Vector& vmax) {
+	Vector w = vmax - vmin;
 	w = (Vector){(float)fabs(w.x), (float)fabs(w.y), (float)fabs(w.z)};
 	if(w.x >= w.y && w.x >= w.z) {
 		return 0;
@@ -1045,7 +1045,7 @@ char findLongestAxis(Vector vmin, Vector vmax) {
 	}
 	return -1;
 }
-
+/*
 //An Efficient and Robust Ray-Box Intersection Algorithm
 bool intersectRayAABB(Ray* trace, Box* box, double dmin, double dmax) {
 	Vector max = box->max, min = box->min;
