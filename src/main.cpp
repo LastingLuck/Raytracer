@@ -44,23 +44,21 @@ int main( int argc, char* argv[] ){
     img = t.rayTrace(*data);
     //Write image
     std::string out = data->getImage().getFileName().substr(0, data->getImage().getFileName().find(".bmp")+4);
+    delete data;
     int len = out.length();
     char* output = new char[len+1];
     strncpy(output, out.c_str(), len);
     output[len] = 0;
     img->Write(output);
+    delete img;
     did_output = true;
-    delete[] output;
     #ifdef DEBUG
     printf("Outputed image to file: %s\n", output);
     #endif
-    
+    delete[] output;
 	if (!did_output) {
 		fprintf( stderr, "Did not output image\n" );
 	}
-    
-	delete img;
-    delete data;
     
 	return 0;
 }

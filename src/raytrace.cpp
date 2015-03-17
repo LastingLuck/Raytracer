@@ -41,25 +41,20 @@ RayTrace::RayTrace(bool bvhforce) {
 }
 
 //Performs a raytrace on the Scene scn with projection type proj
-Image* RayTrace::rayTrace(const Scene& scn) {
+Image* RayTrace::rayTrace(Scene& scn) {
 	#ifdef DEBUG
     printf("Beginning Trace\n");
     #endif
-    bool useBVH = false;
+    bool useBVH = true;
     //#ifdef DEBUG
-    //Vector botleft, topright;
-    //findBoundingVerts(scn, botleft, topright);
-    //printf("Bounding Box:\n");
-    //printf("Bottom Left Close: (%f %f %f)\n", botleft.x, botleft.y, botleft.z);
-    //printf("Top Right Far: (%f %f %f)\n", topright.x, topright.y, topright.z);
-    //printf("\n");
-    //AABB* rootbox = new AABB();
-	//rootbox->setMin(botleft + -.5);
-	//rootbox->setMax(topright + .5);
-	//scn.setBVHRoot(rootbox);
-	//makeBVH(scn, rootbox, 0);
-	//printBVH(rootbox, 0);
-	//useBVH = true;
+    
+    AABB* rootbox = new AABB();
+    if(useBVH) {
+        scn.setBVHRoot(rootbox);
+        bvh->make(scn, rootbox, 0);
+        printBVH(rootbox, 0);   
+    }
+    
     //#endif
     /*
     if(scn.getNumObjects() > scn.getBVHThreshold()) {
@@ -122,10 +117,11 @@ Image* RayTrace::rayTrace(const Scene& scn) {
 				pix.SetClamp(col.x*255.0, col.y*255.0, col.z*255.0);
 				dest->GetPixel(x, y) = pix;
 			}
-			
         }
+        //printf("Row %d\n", x);
     }
     printf("100%%\n");
+    delete rootbox;
     return dest;
 }
 
@@ -154,6 +150,7 @@ Vector RayTrace::evaluateRayTree(const Scene& scn, const Ray& ray, int depth, bo
 Intersect* RayTrace::intersect(const Ray& trace, const Scene& scn, double dmin, double dmax, bool useBVH) const {
 	Intersect* min = 0;					 
 	if(!useBVH) {
+        //printf("Intersect Regular\n");
 		Intersect* sph = intersectSpheres(trace, scn.getSpheres(), dmin, dmax);
 		Intersect* tri = intersectTriangle(trace, scn.getTriangles(), dmin, dmax);
 		//Intersect* pln = intersectPlane(trace, scn->planes, dmin, dmax);
@@ -201,7 +198,8 @@ Intersect* RayTrace::intersect(const Ray& trace, const Scene& scn, double dmin, 
         */
 	}
 	else {
-		//min = intersectBVH(trace, scn.getBVH(), dmin, dmax);
+        //printf("Intersecting BVH\n");
+		min = intersectBVH(trace, scn.getBVHRoot(), dmin, dmax);
 	}
 	return min;
 }
@@ -698,6 +696,10 @@ void BVH::make(Scene& scn, AABB* box, int depth) {
 		//Initialize values so that box starts with every object
 	if(depth == 0) {
 		//box = new AABB(scn->spheres, scn->triangles); //< Already made before this call
+        Vector botleft, topright;
+        findBoundingVerts(scn, botleft, topright);
+        box->setMin(botleft);
+        box->setMax(topright);
         box->setSpheres(scn.getSpheres());
         box->setTriangles(scn.getTriangles());
 		//box->parent = 0;
@@ -707,6 +709,9 @@ void BVH::make(Scene& scn, AABB* box, int depth) {
 		//box->triangles = scn->triangles;
 		//box->planes = scn->planes;
 	}
+    if(box->getObjectNum() < 2) {
+        return;
+    }
 	//Find Longest dimention and split along that
 		//Loop through each object in previous box
 		//Figure out which box they belong in, add it
@@ -820,8 +825,8 @@ void BVH::make(Scene& scn, AABB* box, int depth) {
 		make(scn, s2, depth+1);
 	}
 }
- /*
-Intersect* intersectBVH(Ray* trace, Box* bvh, double dmin, double dmax) {
+
+Intersect* RayTrace::intersectBVH(const Ray& trace, const AABB* bvh, double dmin, double dmax) const {
 	Intersect* in = 0;
 	//Vector min = bhv->min, max - bvh->max;
 	//Vector orig = trace->p, dir = trace->d;
@@ -830,22 +835,32 @@ Intersect* intersectBVH(Ray* trace, Box* bvh, double dmin, double dmax) {
 		//Else recurse down non-null boxes
 	if(intersectRayAABB(trace, bvh, dmin, dmax)) {
 		//Leaf. Check intersections
-		if((bvh->sub1 == 0) && (bvh->sub2 == 0)) {
+		if(bvh->isLeaf()) {
 			//printf("Leaf Box\n");
-			Intersect* tmp = 0;
-			tmp = intersectSpheres(trace, bvh->spheres, dmin, dmax);
-			in = tmp;
-			tmp = intersectTriangle(trace, bvh->triangles, dmin, dmax);
-			if(in == 0) {
-				in = tmp;
+			Intersect* tmpSph = intersectSpheres(trace, bvh->getSpheres(), dmin, dmax);
+			Intersect* tmpTri = intersectTriangle(trace, bvh->getTriangles(), dmin, dmax);
+			if(tmpSph != 0) {
+				in = new Intersect(tmpSph->normal, tmpSph->r, tmpSph->dist, tmpSph->p, tmpSph->m);
+                delete tmpSph;
+                tmpSph = 0;
 			}
-			else if(tmp != 0 && in->dist > tmp->dist) {
-				in->normal = tmp->normal;
-				in->r = tmp->r;
-				in->dist = tmp->dist;
-				in->p = tmp->p;
-				in->m = tmp->m;
-			}
+            if(tmpTri != 0) {
+                if(in == 0) {
+                    in = new Intersect(tmpTri->normal, tmpTri->r, tmpTri->dist, tmpTri->p, tmpTri->m);
+                    delete tmpTri;
+                    tmpTri = 0;
+                }
+                else if(in->dist > tmpTri->dist) {
+                    in->normal = tmpTri->normal;
+                    in->r = tmpTri->r;
+                    in->dist = tmpTri->dist;
+                    in->p = tmpTri->p;
+                    in->m = tmpTri->m;
+                    delete tmpTri;
+                    tmpTri = 0;
+                }
+            }
+            /*
 			tmp = intersectPlane(trace, bvh->planes, dmin, dmax);
 			if(in == 0) {
 				in = tmp;
@@ -857,38 +872,45 @@ Intersect* intersectBVH(Ray* trace, Box* bvh, double dmin, double dmax) {
 				in->p = tmp->p;
 				in->m = tmp->m;
 			}
+            */
 		}
 		//Recurse Down the subboxes
 		else {
 			Intersect* s1 = 0, *s2 = 0;
 			//printf("Box1\n");
-			if(bvh->sub1 != 0 && bvh->sub1->objNum != 0) {
-				s1 = intersectBVH(trace, bvh->sub1, dmin, dmax);
+			if(bvh->getLeftChild() != 0 && bvh->getLeftChild()->getObjectNum() != 0) {
+				s1 = intersectBVH(trace, bvh->getLeftChild(), dmin, dmax);
 			}
 			//printf("Box2\n");
-			if(bvh->sub2 != 0 && bvh->sub2->objNum != 0) {
-				s2 = intersectBVH(trace, bvh->sub2, dmin, dmax);
+			if(bvh->getRightChild() != 0 && bvh->getRightChild()->getObjectNum() != 0) {
+				s2 = intersectBVH(trace, bvh->getRightChild(), dmin, dmax);
 			}
-			in = s1;
-			if(in == 0) {
-				in = s2;
-			}
-			else if(s2 != 0) {
-				if(in->dist > s2->dist) {
-					in->normal = s2->normal;
+            if(s1 != 0) {
+                in = new Intersect(s1->normal, s1->r, s1->dist, s1->p, s1->m);
+                delete s1;
+                s1 = 0;
+            }
+            if(s2 != 0) {
+                if(in == 0) {
+                    in = new Intersect(s2->normal, s2->r, s2->dist, s2->p, s2->m);
+                    delete s2;
+                    s2 = 0;
+                }
+                else if(in->dist > s2->dist) {
+                    in->normal = s2->normal;
 					in->r = s2->r;
 					in->dist = s2->dist;
 					in->p = s2->p;
 					in->m = s2->m;
-				}
-			}
+                    delete s2;
+                    s2 = 0;
+                }
+            }
 		}
 	}
 	return in;
 }
-*/
 
-//std::array<Vector, 8> (&verts)
 void BVH::findBoundingVerts(const Scene& scn, Vector& bl, Vector& tr) {
 	Vector max, min;
 	bool init = false;
@@ -997,11 +1019,10 @@ char BVH::findLongestAxis(const Vector& vmin, const Vector& vmax) {
 	return -1;
 }
 
-/*
 //An Efficient and Robust Ray-Box Intersection Algorithm
-bool intersectRayAABB(Ray* trace, Box* box, double dmin, double dmax) {
-	Vector max = box->max, min = box->min;
-	Vector orig = trace->p, dir = trace->d;
+bool RayTrace::intersectRayAABB(const Ray& trace, const AABB* box, double dmin, double dmax) const {
+	Vector max = box->getMax(), min = box->getMin();
+	Vector orig = trace.getPosition(), dir = trace.getDirection();
 	if((orig.x >= min.x && orig.x <= max.x) && (orig.y >= min.y && orig.y <= max.y) && 
        (orig.z >= min.z && orig.z <= max.z)) {
         return true;
@@ -1058,16 +1079,15 @@ bool intersectRayAABB(Ray* trace, Box* box, double dmin, double dmax) {
 	double dist;
     Vector distv;
     if(tmin >= 0) {
-        distv = add(orig, multiply(dir, tmin));
-        dist = lengthsq(distv);
+        distv = orig + (dir * tmin);
+        dist = distv.magnitudeSq();
     }
     else if(tmax >= 0) {
-        distv = sub(orig, add(orig, multiply(dir, tmax)));
-        dist = lengthsq(distv);
+        distv = orig - (orig + (dir * tmax));
+        dist = distv.magnitudeSq();
     }
     return ((dist < dmax) && (dist > dmin));
 }
-*/
 
 /**
 * Vector Operations
@@ -1084,14 +1104,16 @@ Vector RayTrace::ave(Vector v[], int num) {
 	u = u / num;
 	return u;
 }
-/*
-void printBVH(Box* b, int depth) {
+
+void printBVH(AABB* b, int depth) {
 	for(int i = 0; i < depth; i++) {
 		printf("--");
 	}
-	printf("Min(%f %f %f), Max(%f %f %f)\n", b->min.x, b->min.y, b->min.z, b->max.x, b->max.y, b->max.z);
-	for(int j = 0; j < (signed)b->spheres.size(); j++) {
-		std::vector<Sphere> s = b->spheres;
+    Vector min = b->getMin();
+    Vector max = b->getMax();
+    std::vector<Sphere> sphs = b->getSpheres();
+	printf("Min(%f %f %f), Max(%f %f %f)\n", min.x, min.y, min.z, max.x, max.y, max.z);
+	for(int j = 0; j < (signed)sphs.size(); j++) {
 		for(int i = 0; i < depth; i++) {
 			printf("  ");
 		}
@@ -1099,14 +1121,14 @@ void printBVH(Box* b, int depth) {
 		for(int i = 0; i < depth; i++) {
 			printf("  ");
 		}
-		printf("Pos: (%f %f %f)\n", s[j].position.x, s[j].position.y, s[j].position.z);
+		printf("Pos: (%f %f %f)\n", sphs[j].getPosition().x, sphs[j].getPosition().y, sphs[j].getPosition().z);
 		for(int i = 0; i < depth; i++) {
 			printf("  ");
 		}
-		printf("Rad: %f\n", s[j].radius);
+		printf("Rad: %f\n", sphs[j].getRadius());
 	}
-	for(int j = 0; j < (signed)b->triangles.size(); j++) {
-		std::vector<Triangle> t = b->triangles;
+    std::vector<Triangle> t = b->getTriangles();
+	for(int j = 0; j < (signed)t.size(); j++) {
 		for(int i = 0; i < depth; i++) {
 			printf("  ");
 		}
@@ -1114,16 +1136,17 @@ void printBVH(Box* b, int depth) {
 		for(int i = 0; i < depth; i++) {
 			printf("  ");
 		}
-		printf("V1: (%f %f %f)\n", t[j].vertices[0].x, t[j].vertices[0].y, t[j].vertices[0].z);
+		printf("V1: (%f %f %f)\n", t[j].getVertices()[0].x, t[j].getVertices()[0].y, t[j].getVertices()[0].z);
 		for(int i = 0; i < depth; i++) {
 			printf("  ");
 		}
-		printf("V2: (%f %f %f)\n", t[j].vertices[1].x, t[j].vertices[1].y, t[j].vertices[1].z);
+		printf("V2: (%f %f %f)\n", t[j].getVertices()[1].x, t[j].getVertices()[1].y, t[j].getVertices()[1].z);
 		for(int i = 0; i < depth; i++) {
 			printf("  ");
 		}
-		printf("V3: (%f %f %f)\n", t[j].vertices[2].x, t[j].vertices[2].y, t[j].vertices[2].z);
+		printf("V3: (%f %f %f)\n", t[j].getVertices()[2].x, t[j].getVertices()[2].y, t[j].getVertices()[2].z);
 	}
+    /*
 	for(int j = 0; j < (signed)b->planes.size(); j++) {
 		std::vector<Plane> p = b->planes;
 		for(int i = 0; i < depth; i++) {
@@ -1139,12 +1162,12 @@ void printBVH(Box* b, int depth) {
 		}
 		printf("Normal: (%f %f %f)\n", p[j].normal.x, p[j].normal.y, p[j].normal.z);
 	}
-	
-	if(b->sub1 != 0) {
-		printBVH(b->sub1, depth+1);
+	*/
+	if(b->getLeftChild() != 0) {
+		printBVH(b->getLeftChild(), depth+1);
 	}
-	if(b->sub2 != 0) {
-		printBVH(b->sub2, depth+1);
+	if(b->getRightChild() != 0) {
+		printBVH(b->getRightChild(), depth+1);
 	}
 }
-*/
+

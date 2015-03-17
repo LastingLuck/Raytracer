@@ -66,7 +66,7 @@ class RayTrace {
         RayTrace();
         RayTrace(bool bvhforce);
         //Performs a ray trace and returns an image
-        Image* rayTrace(const Scene& scn);
+        Image* rayTrace(Scene& scn);
         void forceBVH(bool force) { forcebvh = force; }
     private:
         bool forcebvh;
@@ -88,6 +88,8 @@ class RayTrace {
         Intersect* intersect(const Ray& trace, const Scene& scn, double tmin, double tmax, bool useBVH) const;
         Intersect* intersectSpheres(const Ray& trace, const std::vector<Sphere>& objList, double dmin, double dmax) const;
         Intersect* intersectTriangle(const Ray& trace, const std::vector<Triangle>& triList, double dmin, double dmax) const;
+        Intersect* intersectBVH(const Ray& trace, const AABB* bvh, double dmin, double dmax) const;
+        bool intersectRayAABB(const Ray& trace, const AABB* box, double dmin, double dmax) const;
 };
 
 //Intersect* intersectPlane(Ray* trace, std::vector<Plane> planeList, double dmin, double dmax);

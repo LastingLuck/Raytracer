@@ -581,6 +581,15 @@ rt::Image::Image(const std::string& name, int imageWidth, int imageHeight) {
 }
 
 /********************
+ * Plane
+ ********************/
+
+Plane::Plane() {
+    normal = Vector();
+    point = Vector();
+}
+
+/********************
  * AABB
  ********************/
 AABB::AABB() {

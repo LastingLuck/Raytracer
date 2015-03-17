@@ -370,5 +370,6 @@ void printMaterial(Material mat);
 void printLight(Light l);
 void printImage(rt::Image img);
 void printVector(Vector fVec);
+void printBVH(AABB* b, int depth);
 
 #endif
