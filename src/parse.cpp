@@ -606,6 +606,12 @@ AABB::AABB(const Vector& minimum, const Vector& maximum) {
 AABB::AABB(AABB* p) {
     left = right = 0;
     parent = p;
+    //parent = new AABB(p.getSpheres(), p.getTriangles());
+    //parent->setMin(p.getMin());
+    //parent->setMax(p.getMax());
+    //parent->setParent(p.getParent());
+    //parent->setLeftChild(p.getLeftChild());
+    //parent->setRightChild(p.getRightChild());
 }
 
 AABB::AABB(const std::vector<Sphere> sphs, const std::vector<Triangle> tris) {

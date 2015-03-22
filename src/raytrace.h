@@ -90,6 +90,7 @@ class RayTrace {
         Intersect* intersectTriangle(const Ray& trace, const std::vector<Triangle>& triList, double dmin, double dmax) const;
         Intersect* intersectBVH(const Ray& trace, const AABB* bvh, double dmin, double dmax) const;
         bool intersectRayAABB(const Ray& trace, const AABB* box, double dmin, double dmax) const;
+        void deleteAABB(AABB* box);
 };
 
 //Intersect* intersectPlane(Ray* trace, std::vector<Plane> planeList, double dmin, double dmax);

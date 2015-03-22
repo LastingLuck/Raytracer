@@ -101,6 +101,8 @@ Image::Image (char* fname){
 
 Image::~Image (){
 	delete bmpImg;
+    delete[] pixels;
+    bmpImg = NULL;
     pixels = NULL;
 }
 

@@ -52,7 +52,9 @@ Image* RayTrace::rayTrace(Scene& scn) {
     if(useBVH) {
         scn.setBVHRoot(rootbox);
         bvh->make(scn, rootbox, 0);
+        #ifdef DEBUG
         printBVH(rootbox, 0);   
+        #endif
     }
     
     //#endif
@@ -121,7 +123,8 @@ Image* RayTrace::rayTrace(Scene& scn) {
         //printf("Row %d\n", x);
     }
     printf("100%%\n");
-    delete rootbox;
+    deleteAABB(rootbox);
+    //delete rootbox;
     return dest;
 }
 
@@ -139,6 +142,7 @@ Vector RayTrace::evaluateRayTree(const Scene& scn, const Ray& ray, int depth, bo
     if(hit) {
         Vector pixcol = getColor(in, scn, depth, useBVH);
         delete in;
+        in = 0;
         return pixcol;
     }
     else {
@@ -199,7 +203,12 @@ Intersect* RayTrace::intersect(const Ray& trace, const Scene& scn, double dmin, 
 	}
 	else {
         //printf("Intersecting BVH\n");
-		min = intersectBVH(trace, scn.getBVHRoot(), dmin, dmax);
+		Intersect* b = intersectBVH(trace, scn.getBVHRoot(), dmin, dmax);
+        if(b != 0) {
+            min = new Intersect(b->normal, b->r, b->dist, b->p, b->m);
+            delete b;
+            b = 0;
+        }
 	}
 	return min;
 }
@@ -911,6 +920,19 @@ Intersect* RayTrace::intersectBVH(const Ray& trace, const AABB* bvh, double dmin
 	return in;
 }
 
+void RayTrace::deleteAABB(AABB* box) {
+    if(!box->isLeaf()) {
+        if(box->getLeftChild()) {
+            deleteAABB(box->getLeftChild());
+        }
+        if(box->getRightChild()) {
+            deleteAABB(box->getRightChild());
+        }
+    }
+    delete box;
+    box = 0;
+}
+
 void BVH::findBoundingVerts(const Scene& scn, Vector& bl, Vector& tr) {
 	Vector max, min;
 	bool init = false;
@@ -1023,7 +1045,8 @@ char BVH::findLongestAxis(const Vector& vmin, const Vector& vmax) {
 bool RayTrace::intersectRayAABB(const Ray& trace, const AABB* box, double dmin, double dmax) const {
 	Vector max = box->getMax(), min = box->getMin();
 	Vector orig = trace.getPosition(), dir = trace.getDirection();
-	if((orig.x >= min.x && orig.x <= max.x) && (orig.y >= min.y && orig.y <= max.y) && 
+    //If origin is inside the box, return true
+    if((orig.x >= min.x && orig.x <= max.x) && (orig.y >= min.y && orig.y <= max.y) && 
        (orig.z >= min.z && orig.z <= max.z)) {
         return true;
     }
@@ -1076,7 +1099,9 @@ bool RayTrace::intersectRayAABB(const Ray& trace, const AABB* box, double dmin, 
     if(tzmax < tmax) {
         tmax = tzmax;
     }
-	double dist;
+    return (tmin < dmax) && (tmax > dmin);
+    /** I'm unsure where this came from. It's not in the paper anywhere.
+    double dist;
     Vector distv;
     if(tmin >= 0) {
         distv = orig + (dir * tmin);
@@ -1087,6 +1112,7 @@ bool RayTrace::intersectRayAABB(const Ray& trace, const AABB* box, double dmin, 
         dist = distv.magnitudeSq();
     }
     return ((dist < dmax) && (dist > dmin));
+    */
 }
 
 /**
