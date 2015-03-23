@@ -1,7 +1,8 @@
 # README #
 
-This is a simple C++ implementation of a ray tracer that outputs images in bmp format.
-More info and images can be found [here](https://sites.google.com/site/alexdahl5607/ray-tracer-pt-2). The next feature I'm working on is implementing a Bounding Volume Hierarchy structure to accelerate it further. The structure is there, however it is still incomplete.
+This is a simple C++ implementation of a ray tracer that outputs images in bmp format. This project makes use of the EasyBMP library by Paul Macklin. All credit for that goes to him.
+
+More info and images can be found [here](https://sites.google.com/site/alexdahl5607/ray-tracer-pt-2). The next feature I'm working on is implementing a Bounding Volume Hierarchy structure to accelerate it further. The structure is there, however it is still incomplete. There are currently issues with triangles not testing inside of a box when fully encompassed.
 
 **Supports**:
 
@@ -22,6 +23,8 @@ To run this, just call the make command in the terminal and run the command:
 $ ./raytrace scene_file
 
 Run make with the option PARALLEL=1 to turn on parallelization.
+
+Run make with the option DEBUG=1 to turn on debugging output. (Warning: This could be a lot in info)
 
 
 Format for the scene file is a regular text file. Each line is a single component and the first word specifies how the rest of the line is interpreted. The rest of the line is a space-seperated list of parameters. Lines starting with a '#' are comments and will be skipped. 
