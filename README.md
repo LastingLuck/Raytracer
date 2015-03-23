@@ -4,6 +4,16 @@ This is a simple C++ implementation of a ray tracer that outputs images in bmp f
 
 More info and images can be found [here](https://sites.google.com/site/alexdahl5607/ray-tracer-pt-2). The next feature I'm working on is implementing a Bounding Volume Hierarchy structure to accelerate it further. The structure is there, however it is still incomplete. There are currently issues with triangles not testing inside of a box when fully encompassed.
 
+**Future Feature List** (Things I'd like to do):
+
+*Area Lights and Soft Shadows
+*Planes and Boxes
+*Graphical UI with real-time render updating
+*Cones and Cylinders
+*Texture Mapping
+*Bump Mapping
+*Depth of Field
+
 **Supports**:
 
 * Spheres
