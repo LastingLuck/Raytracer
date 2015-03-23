@@ -6,13 +6,13 @@ More info and images can be found [here](https://sites.google.com/site/alexdahl5
 
 **Future Feature List** (Things I'd like to do):
 
-*Area Lights and Soft Shadows
-*Planes and Boxes
-*Graphical UI with real-time render updating
-*Cones and Cylinders
-*Texture Mapping
-*Bump Mapping
-*Depth of Field
+* Area Lights and Soft Shadows
+* Planes and Boxes
+* Graphical UI with real-time render updating
+* Cones and Cylinders
+* Texture Mapping
+* Bump Mapping
+* Depth of Field
 
 **Supports**:
 
