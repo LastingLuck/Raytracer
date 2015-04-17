@@ -14,7 +14,8 @@ enum ProjType {
     ORTHO,
     PERSP
 };
-enum LightType { 
+
+enum LightType {
     AMBIENT,
     DIRECTIONAL,
     POINT, 
@@ -185,11 +186,11 @@ class Light {
         enum LightType getType() const { return ltype; }
         
     private:
-        Vector color;        //Color of the light (All)
-        Vector position;     //Position of the Light (Point, Spot)
-        Vector direction;    //Direction the light is pointing (Directional, Spot)
-        float angle1;        //Angle where it acts as a point light (Spot)
-        float angle2;        //Max angle that the spot light reaches (Spot)
+        Vector color;         //Color of the light (All)
+        Vector position;      //Position of the Light (Point, Spot)
+        Vector direction;     //Direction the light is pointing (Directional, Spot)
+        float angle1;         //Angle where it acts as a point light (Spot)
+        float angle2;         //Max angle that the spot light reaches (Spot)
         enum LightType ltype; //Light type (0-ambient, 1-directional, 2-point, 3-spot)
 };
 
@@ -300,9 +301,7 @@ class Scene {
         void addTriangle(const Triangle& tri) { triangles.push_back(tri); objNum++; }
         void setBackground(const Vector& bg) { bgColor = bg; }
         void setMaxDepth(int maximumDepth) { maxDepth = maximumDepth; }
-        void addDirectionalLight(const Light& dirLight) { directional.push_back(dirLight); }
-        void addPointLight(const Light& pointLight) { point.push_back(pointLight); }
-        void addSpotLight(const Light& spotLight) { spot.push_back(spotLight); }
+        void addLight(const Light& dirLight) { lights.push_back(dirLight); }
         void setAmbientLight(const Light& ambLight) { ambient = ambLight; }
         void setBVHDepth(int depth) { bvhDepth = depth; }
         void setBVHThreshold(int threshold) { bvhThresh = threshold; }
@@ -318,9 +317,7 @@ class Scene {
         std::vector<Triangle> getTriangles() const { return triangles; }
         Vector getBGColor() const { return bgColor; }
         int getDepth() const { return maxDepth; }
-        std::vector<Light> getDirLights() const { return directional; }
-        std::vector<Light> getPointLights() const { return point; }
-        std::vector<Light> getSpotLights() const { return spot; }
+        std::vector<Light> getLights() const { return lights; }
         Light getAmbLight() const { return ambient; }
         int getNumObjects() const { return objNum; }
         int getBVHDepth() const { return bvhDepth; }
@@ -346,9 +343,10 @@ class Scene {
         //depth
         int maxDepth;
         //Lights
-        std::vector<Light> directional;
-        std::vector<Light> point;
-        std::vector<Light> spot;
+        std::vector<Light> lights;
+        //std::vector<Light> directional;
+        //std::vector<Light> point;
+        //std::vector<Light> spot;
         Light ambient;
         //Misc
         int objNum;

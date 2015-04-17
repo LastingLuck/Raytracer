@@ -150,17 +150,17 @@ int Scene::parseScene(char* file) {
         else if(str == "directional_light") {
             float r, g, b, x, y, z;
             scn >> r >> g >> b >> x >> y >> z;
-            addDirectionalLight(Light(Vector(r, g, b), Vector(x, y, z), DIRECTIONAL));
+            addLight(Light(Vector(r, g, b), Vector(x, y, z), DIRECTIONAL));
         }
         else if(str == "point_light") {
             float r, g, b, x, y, z;
             scn >> r >> g >> b >> x >> y >> z;
-            addSpotLight(Light(Vector(r, g, b), Vector(x, y, z), POINT));
+            addLight(Light(Vector(r, g, b), Vector(x, y, z), POINT));
         }
         else if(str == "spot_light") {
             float r, g, b, px, py, pz, dx, dy, dz, angle1, angle2;
             scn >> r >> g >> b >> px >> py >> pz >> dx >> dy >> dz >> angle1 >> angle2;
-            addSpotLight(Light(Vector(r, g, b), Vector(px, py, pz), Vector(dx, dy, dz), angle1, angle2));
+            addLight(Light(Vector(r, g, b), Vector(px, py, pz), Vector(dx, dy, dz), angle1, angle2));
         }
         else if(str == "ambient_light") {
             float r, g, b;
@@ -768,10 +768,10 @@ bool AABB::isInBox(const Plane& pln) const {
       vmax.z = -maxbox.z - v;
     }
     
-    if(Vector::dot(normal, vmin) > 0) {
+    if(Vector::dot(normal, vmin) > 0.0f) {
         return false;
     }
-    if(Vector::dot(normal, vmax) >= 0) {
+    if(Vector::dot(normal, vmax) >= 0.0f) {
         return true;
     }
     return false;
@@ -813,39 +813,15 @@ void printScene(Scene *scn) {
     printVector(scn->getBGColor());
     printf("\n");
     
-    printf("Directional Lights:\n");
-    num = scn->getDirLights().size();
+    printf("Lights:\n");
+    num = scn->getLights().size();
     if (num > 0) {
         for (int i = 0; i < num; i++) {
-            printLight(scn->getDirLights()[i]);
+            printLight(scn->getLights()[i]);
         }
     }
     else {
-        printf("No Directional Lights\n");
-    }
-    printf("\n");
-    
-    printf("Point Lights:\n");
-    num = scn->getPointLights().size();
-    if (num > 0) {
-        for (int i = 0; i < num; i++) {
-            printLight(scn->getPointLights()[i]);
-        }
-    }
-    else {
-        printf("No Point Lights\n");
-    }
-    printf("\n");
-    
-    printf("Spot Lights:\n");
-    num = scn->getSpotLights().size();
-    if (num > 0) {
-        for (int i = 0; i < num; i++) {
-            printLight(scn->getSpotLights()[i]);
-        }
-    }
-    else {
-        printf("No Spot Lights\n");
+        printf("No Lights\n");
     }
     printf("\n");
     
@@ -939,13 +915,31 @@ void printMaterial(Material mat) {
 }
 
 void printLight(Light l) {
+    printf("Type: ");
+    switch(l.getType()) {
+        case DIRECTIONAL:
+            printf("Directional\n");
+            printf("Direction: ");
+            printVector(l.getDirection());
+            break;
+        case POINT:
+            printf("Point\n");
+            printf("Position: ");
+            printVector(l.getPosition());
+            break;
+        case SPOT:
+            printf("Spot\n");
+            printf("Position: ");
+            printVector(l.getPosition());
+            printf("Direction: ");
+            printVector(l.getDirection());
+            printf("Angle: (%f %f)\n", l.getSpotAngle(), l.getMaxAngle());
+            break;
+        default:
+            printf("Ambient\n");
+    }
     printf("Color: ");
     printVector(l.getColor());
-    printf("Position: ");
-    printVector(l.getPosition());
-    printf("Direction: ");
-    printVector(l.getDirection());
-    printf("Angle: (%f %f)\n", l.getSpotAngle(), l.getMaxAngle());
 }
 
 void printImage(rt::Image img) {

@@ -486,11 +486,9 @@ Ray RayTrace::getRay(int x, int y, int w, int h, const Vector& p1, const Vector&
 
 //Returns a pixel with the background color
 Vector RayTrace::getColor(const Intersect* i, const Scene& scn, int depth, bool useBVH) const {
-	std::vector<Light> d = scn.getDirLights();
-	std::vector<Light> p = scn.getPointLights();
-	std::vector<Light> s = scn.getSpotLights();
+	std::vector<Light> lights = scn.getLights();
 	Light a = scn.getAmbLight();
-	int lnum[3] = {(signed)d.size(), (signed)p.size(), (signed)s.size()};
+	int nlights = lights.size();
 	Material m = i->m;
 	Vector dif = m.getDiffuse();
     Vector spec = m.getSpecular();
@@ -516,23 +514,56 @@ Vector RayTrace::getColor(const Intersect* i, const Scene& scn, int depth, bool 
 	Vector I;
 	Light L;
     Intersect* in = 0;
-	//Directional
-	for(int j = 0; j < lnum[0]; j++) {
-		L = d[j];
+	for(int j = 0; j < nlights; j++) {
+		L = lights[j];
 		//Lambert
 		//If the ray from the point in the direction of the light intersects
 		//anything, skip the rest
-		I = L.getDirection() * -1.0;
-		I = I.norm();
-		shadow.setDirection(I);
+        double dist = 0.0f;
+        if(L.getType() == DIRECTIONAL) {
+            I = L.getDirection() * -1.0;
+            I = I.norm();
+            shadow.setDirection(I);
+            dist = std::numeric_limits<double>::infinity();
+        } 
+        else { //Point or Spot light
+            I = L.getPosition() - point;
+            dist = I.magnitudeSq();
+            I = I.norm();
+            shadow.setDirection(I);
+        }
 		//Use really small number in intersect so that it doesn't intersect itself
-		if((in = intersect(shadow, scn, .001, std::numeric_limits<double>::infinity(), useBVH))) {
+		if((in = intersect(shadow, scn, .001, dist, useBVH))) {
             delete in;
 			continue;
 		}
+        /***
+         * TODO - Update rest of the Lighting code to use the one loop
+         ***/
 		double dotni = Vector::dot(normal, I);
 		double cosAlpha = (dotni > 0) ? dotni : 0;
 		Vector illum = L.getColor();
+        if(L.getType() == POINT) {
+            illum = illum * (1.0/dist);
+        }
+        else if(L.getType() == SPOT) {
+            double alpha = acos(cosAlpha);
+            //Acts like a point light
+            if(alpha < L.getSpotAngle()) {
+                illum = L.getColor() * (1.0/dist);
+            }
+            //Greater than angle2, light contributes nothing
+            else if(alpha > L.getMaxAngle()) {
+                illum = Vector();
+            }
+            //Linearly interpolate
+            else {
+                //Get amount alpha is between the 2 angles (angle1=1, angle2=0)
+                double amt = 1 - ((alpha - L.getSpotAngle()) / (L.getMaxAngle() - L.getSpotAngle()));
+                //Multiply light by amount
+                illum = L.getColor() * ((1.0/dist)*amt);
+            }
+        }
 		rval += dif.x * illum.x * cosAlpha;
 		gval += dif.y * illum.y * cosAlpha;
 		bval += dif.z * illum.z * cosAlpha;
@@ -540,88 +571,6 @@ Vector RayTrace::getColor(const Intersect* i, const Scene& scn, int depth, bool 
 		Vector ref = (normal * (2.0*dotni)) - I;
 		Vector V = direct * -1.0f;
         double powval = Vector::dot(V.norm(), ref.norm());
-        double pspec;
-        if(powval < 0.0) {
-            pspec = 0.0;
-        }
-        else {
-            pspec = pow(powval, m.getCosPower());
-        }
-		rval += spec.x * pspec * illum.x;
-		gval += spec.y * pspec * illum.y;
-		bval += spec.z * pspec * illum.z;
-	}
-	//Point
-	for(int k = 0; k < lnum[1]; k++) {
-		L = p[k];
-		I = L.getPosition() - point;
-		//Lambert
-		double dist = I.magnitudeSq();
-		I = I.norm();
-		shadow.setDirection(I);
-		if((in = intersect(shadow, scn, .001, dist, useBVH))) {
-            delete in;
-			continue;
-		}
-		Vector illum = L.getColor() * (1.0/dist);
-		double dotni = Vector::dot(normal, I);
-		double cosAlpha = (dotni > 0) ? dotni : 0;
-		rval += dif.x * illum.x * cosAlpha;
-		gval += dif.y * illum.y * cosAlpha;
-		bval += dif.z * illum.z * cosAlpha;
-		//Phong
-		Vector ref = (normal * (2.0*dotni)) - I;
-		Vector V = direct * -1.0;
-		double powval = Vector::dot(V.norm(), ref.norm());
-        double pspec;
-        if(powval < 0.0) {
-            pspec = 0.0;
-        }
-        else {
-            pspec = pow(powval, m.getCosPower());
-        }
-		rval += spec.x * pspec * illum.x;
-		gval += spec.y * pspec * illum.y;
-		bval += spec.z * pspec * illum.z;
-	}
-	//Spot
-	for(int l = 0; l < lnum[2]; l++) {
-		L = s[l];
-		I = L.getPosition() - point;
-		//Lambert
-		double dist = I.magnitudeSq();
-		I = I.norm();
-		shadow.setDirection(I);
-		if((in = intersect(shadow, scn, .001, dist, useBVH))) {
-			delete in;
-            continue;
-		}
-		Vector illum;
-		double dotni = Vector::dot(normal, I);
-		double cosAlpha = (dotni > 0) ? dotni : 0;
-		double alpha = acos(cosAlpha);
-		//Acts like a point light
-		if(alpha < L.getSpotAngle()) {
-			illum = L.getColor() * (1.0/dist);
-		}
-		//Greater than angle2, light contributes nothing
-		else if(alpha > L.getMaxAngle()) {
-			illum = Vector();
-		}
-		//Linearly interpolate
-		else {
-			//Get amount alpha is between the 2 angles (angle1=1, angle2=0)
-			double amt = 1 - ((alpha - L.getSpotAngle()) / (L.getMaxAngle() - L.getSpotAngle()));
-			//Multiply light by amount
-			illum = L.getColor() * ((1.0/dist)*amt);
-		}
-		rval += dif.x * illum.x * cosAlpha;
-		gval += dif.y * illum.y * cosAlpha;
-		bval += dif.z * illum.z * cosAlpha;
-		//Phong
-		Vector ref = (normal * (2.0*dotni)) - I;
-		Vector V = direct * -1.0f;
-		double powval = Vector::dot(V.norm(), ref.norm());
         double pspec;
         if(powval < 0.0) {
             pspec = 0.0;
@@ -703,6 +652,9 @@ void RayTrace::getExtremePoints(const Camera& c, double d, double w, double h, V
 void BVH::make(Scene& scn, AABB* box, int depth) {
 	//If depth is 0, start by making first box
 		//Initialize values so that box starts with every object
+    if(depth == 1) {
+        printf("Depth 1\n");
+    }
 	if(depth == 0) {
 		//box = new AABB(scn->spheres, scn->triangles); //< Already made before this call
         Vector botleft, topright;
@@ -711,6 +663,8 @@ void BVH::make(Scene& scn, AABB* box, int depth) {
         box->setMax(topright);
         box->setSpheres(scn.getSpheres());
         box->setTriangles(scn.getTriangles());
+        printf("Make %d\n", depth+1);
+        depth++;
 		//box->parent = 0;
 		//box->sub1 = 0;
 		//box->sub2 = 0;
@@ -729,20 +683,8 @@ void BVH::make(Scene& scn, AABB* box, int depth) {
 	//char axis = findLongestAxis(vrts);
 	char axis = findLongestAxis(bmin, bmax);
 	Vector w = bmax - bmin;
-	if(depth == 1) {
-		//printf("Axis: %c\n", axis);
-		//printf("W: (%f %f %f)\n", w.x, w.y, w.z);
-	}
 	AABB* s1 = new AABB(box);
-	//s1->parent = box;
-	//s1->sub1 = 0;
-	//s1->sub2 = 0;
-	//s1->objNum = 0;
 	AABB* s2 = new AABB(box);
-	//s2->parent = box;
-	//s2->sub1 = 0;
-	//s2->sub2 = 0;
-	//s2->objNum = 0;
 	float hp;
 	switch(axis) {
 		case 0: //X
@@ -776,7 +718,7 @@ void BVH::make(Scene& scn, AABB* box, int depth) {
 	//Find which box objects are in 
 	//bool noitems1 = true;
 	//bool noitems2 = true;
-    std::vector<Sphere> sphs = scn.getSpheres();
+    std::vector<Sphere> sphs = box->getSpheres();
 	int num = sphs.size();
 	for(int i = 0; i < num; i++) {
 		Sphere sphere = sphs[i];
@@ -789,16 +731,26 @@ void BVH::make(Scene& scn, AABB* box, int depth) {
 			//noitems2 = false;
 		}
 	}
-    std::vector<Triangle> tris = scn.getTriangles();
+    std::vector<Triangle> tris = box->getTriangles();
 	num = tris.size();
+    if(depth == 1)
+        printf("Tri Num: %d\n\n", num);
 	for(int i = 0; i < num; i++) {
 		Triangle triangle = tris[i];
 		if(s1->isInBox(triangle)) {
 			s1->addTriangle(triangle);
+            if(depth == 1) {
+                printf("Triangle %d in s1\n", i);
+                printf("New Size: %d\n", (int)s1->getTriangles().size());
+            }
 			//noitems1 = false;
 		}
 		if(s2->isInBox(triangle)) {
 			s2->addTriangle(triangle);
+            if(depth == 1) {
+                printf("Triangle %d in s2\n", i);
+                printf("New Size: %d\n", (int)s1->getTriangles().size());
+            }
 			//noitems2 = false;
 		}
 	}
@@ -885,34 +837,39 @@ Intersect* RayTrace::intersectBVH(const Ray& trace, const AABB* bvh, double dmin
 		}
 		//Recurse Down the subboxes
 		else {
-			Intersect* s1 = 0, *s2 = 0;
+			Intersect* s1 = 0;
 			//printf("Box1\n");
-			if(bvh->getLeftChild() != 0 && bvh->getLeftChild()->getObjectNum() != 0) {
+			if(bvh->getLeftChild() != 0) {
 				s1 = intersectBVH(trace, bvh->getLeftChild(), dmin, dmax);
 			}
+            if(s1 != 0) {
+                if(in == 0) {
+                    in = new Intersect(s1->normal, s1->r, s1->dist, s1->p, s1->m);
+                    delete s1;
+                    s1 = 0;
+                }
+                else {
+                    printf("I don't know what's happending\n");
+                }
+            }
 			//printf("Box2\n");
-			if(bvh->getRightChild() != 0 && bvh->getRightChild()->getObjectNum() != 0) {
-				s2 = intersectBVH(trace, bvh->getRightChild(), dmin, dmax);
+			if(bvh->getRightChild() != 0) {
+				s1 = intersectBVH(trace, bvh->getRightChild(), dmin, dmax);
 			}
             if(s1 != 0) {
-                in = new Intersect(s1->normal, s1->r, s1->dist, s1->p, s1->m);
-                delete s1;
-                s1 = 0;
-            }
-            if(s2 != 0) {
                 if(in == 0) {
-                    in = new Intersect(s2->normal, s2->r, s2->dist, s2->p, s2->m);
-                    delete s2;
-                    s2 = 0;
+                    in = new Intersect(s1->normal, s1->r, s1->dist, s1->p, s1->m);
+                    delete s1;
+                    s1 = 0;
                 }
-                else if(in->dist > s2->dist) {
-                    in->normal = s2->normal;
-					in->r = s2->r;
-					in->dist = s2->dist;
-					in->p = s2->p;
-					in->m = s2->m;
-                    delete s2;
-                    s2 = 0;
+                else if(in->dist > s1->dist) {
+                    in->normal = s1->normal;
+					in->r = s1->r;
+					in->dist = s1->dist;
+					in->p = s1->p;
+					in->m = s1->m;
+                    delete s1;
+                    s1 = 0;
                 }
             }
 		}
