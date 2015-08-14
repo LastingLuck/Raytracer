@@ -985,7 +985,7 @@ void BVH::findBoundingVerts(const Scene& scn, Vector& bl, Vector& tr) {
 //std::array<Vector, 8> vrts
 char BVH::findLongestAxis(const Vector& vmin, const Vector& vmax) {
 	Vector w = vmax - vmin;
-	w = (Vector){(float)fabs(w.x), (float)fabs(w.y), (float)fabs(w.z)};
+	w = Vector((float)fabs(w.x), (float)fabs(w.y), (float)fabs(w.z));
 	if(w.x >= w.y && w.x >= w.z) {
 		return 0;
 	}
